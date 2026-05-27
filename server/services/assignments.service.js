@@ -2,7 +2,7 @@ const assignmentsRepo = require('../repositories/assignments.repository');
 const usersRepo = require('../repositories/users.repository');
 const projectsRepo = require('../repositories/projects.repository');
 const audit = require('../utils/audit');
-const { today } = require('../utils/date');
+const { today, weekStartOf } = require('../utils/date');
 
 function listAssignments() {
   return assignmentsRepo.findAll();
@@ -21,6 +21,8 @@ function listByProject(projectId) {
 }
 
 function createAssignment(adminId, { pmId, projectId, assignedFrom }) {
+  // Default to Monday of the current week so new PMs can log the whole week immediately
+  const from = assignedFrom || weekStartOf(today());
   const user = usersRepo.findById(pmId);
   if (!user || user.role !== 'pm') throw { status: 404, message: 'PM not found' };
   if (!user.is_active) throw { status: 409, message: 'Cannot assign a deactivated PM' };
@@ -32,9 +34,9 @@ function createAssignment(adminId, { pmId, projectId, assignedFrom }) {
   const overlap = assignmentsRepo.findOverlap(pmId, projectId);
   if (overlap) throw { status: 409, message: 'This PM already has an active assignment on this project. End the existing assignment first.' };
 
-  const result = assignmentsRepo.create({ pmId, projectId, assignedFrom });
+  const result = assignmentsRepo.create({ pmId, projectId, assignedFrom: from });
   audit.log(adminId, 'ASSIGN', 'assignment', result.lastInsertRowid, {
-    pm: user.name, project: project.name, from: assignedFrom
+    pm: user.name, project: project.name, from
   });
   return assignmentsRepo.findById(result.lastInsertRowid);
 }

@@ -7,7 +7,7 @@ import EmptyState from '../../components/ui/EmptyState';
 import { SkeletonTable } from '../../components/ui/LoadingSkeleton';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
-import { format } from 'date-fns';
+import { format, startOfISOWeek } from 'date-fns';
 
 const LinkIcon = () => <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>;
 
@@ -18,7 +18,7 @@ export default function Assignments() {
   const [users, setUsers] = useState([]);
   const [projects, setProjects] = useState([]);
   const [modal, setModal] = useState(false);
-  const [form, setForm] = useState({ pmId: '', projectId: '', assignedFrom: format(new Date(), 'yyyy-MM-dd') });
+  const [form, setForm] = useState({ pmId: '', projectId: '', assignedFrom: format(startOfISOWeek(new Date()), 'yyyy-MM-dd') });
   const [formErr, setFormErr] = useState('');
   const [saving, setSaving] = useState(false);
   const [endTarget, setEndTarget] = useState(null);
@@ -70,7 +70,7 @@ export default function Assignments() {
             <input type="checkbox" className="rounded" checked={showAll} onChange={e => setShowAll(e.target.checked)} />
             Show all (including ended)
           </label>
-          <button className="btn-primary" onClick={() => { setModal(true); setForm({ pmId: '', projectId: '', assignedFrom: format(new Date(), 'yyyy-MM-dd') }); setFormErr(''); }}>+ Assign PM</button>
+          <button className="btn-primary" onClick={() => { setModal(true); setForm({ pmId: '', projectId: '', assignedFrom: format(startOfISOWeek(new Date()), 'yyyy-MM-dd') }); setFormErr(''); }}>+ Assign PM</button>
         </div>
 
         {loading ? <SkeletonTable /> : assignments.length === 0 ? (
