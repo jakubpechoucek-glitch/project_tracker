@@ -29,14 +29,9 @@ export default function Sidebar() {
   return (
     <aside className="w-60 shrink-0 bg-white border-r border-gray-200 flex flex-col h-screen sticky top-0">
       {/* Logo */}
-      <div className="flex items-center gap-2.5 px-5 py-5 border-b border-gray-100">
-        <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shrink-0">
-          <span className="text-white text-xs font-bold">PT</span>
-        </div>
-        <div>
-          <p className="text-sm font-bold text-gray-900 leading-none">Project Tracker</p>
-          <p className="text-xs text-gray-400 mt-0.5">Home Credit PH</p>
-        </div>
+      <div className="px-5 py-4 border-b border-gray-100">
+        <img src="/hc-logo.svg" alt="Home Credit" className="h-7 mb-2" />
+        <p className="text-xs font-semibold text-gray-500 tracking-wide">Project Tracker</p>
       </div>
 
       {/* Nav */}

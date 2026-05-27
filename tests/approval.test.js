@@ -50,11 +50,11 @@ describe('Approval workflow', () => {
     expect(res.body.data.submitted).toBe(1);
   });
 
-  test('Entry is now pending', async () => {
+  test('Entry is now approved (auto-approved on submit)', async () => {
     const res = await request(app).get(`/api/entries?pmId=${pmId}`)
       .set('Authorization', `Bearer ${adminToken}`);
     const entry = res.body.data.rows.find(e => e.id === entryId);
-    expect(entry.status).toBe('pending');
+    expect(entry.status).toBe('approved');
   });
 
   test('PM cannot approve own entry', async () => {
@@ -63,7 +63,10 @@ describe('Approval workflow', () => {
     expect(res.status).toBe(403);
   });
 
-  test('Admin can reject with reason', async () => {
+  test('Admin can reject a pending entry', async () => {
+    // Force back to pending so reject endpoint accepts it
+    const db = getDb();
+    db.prepare("UPDATE time_entries SET status = 'pending' WHERE id = ?").run(entryId);
     const res = await request(app).post(`/api/entries/${entryId}/reject`)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ reason: 'Insufficient description, please add more detail' });
@@ -72,7 +75,7 @@ describe('Approval workflow', () => {
     expect(res.body.data.rejection_reason).toContain('Insufficient');
   });
 
-  test('Rejected entry returns to draft after PM cannot submit directly', async () => {
+  test('Entry is rejected', async () => {
     const res = await request(app).get(`/api/entries?pmId=${pmId}`)
       .set('Authorization', `Bearer ${adminToken}`);
     const entry = res.body.data.rows.find(e => e.id === entryId);

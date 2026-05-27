@@ -273,9 +273,9 @@ export default function Timesheet() {
 
       <ConfirmDialog
         open={submitOpen}
-        title="Submit week for approval?"
-        message="All draft entries for this week will be sent to your admin for review. You won't be able to edit them until they are returned."
-        confirmLabel="Submit"
+        title="Close this week?"
+        message="All draft entries for this week will be marked as approved. You won't be able to edit them afterwards."
+        confirmLabel="Close week"
         confirmClass="btn-primary"
         onConfirm={handleSubmit}
         onCancel={() => setSubmitOpen(false)}

@@ -34,11 +34,9 @@ export default function Login() {
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
       {/* Logo */}
       <div className="mb-8 text-center">
-        <div className="w-14 h-14 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg">
-          <span className="text-white text-xl font-bold">PT</span>
-        </div>
+        <img src="/hc-logo.svg" alt="Home Credit" className="h-10 mx-auto mb-4" />
         <h1 className="text-2xl font-bold text-gray-900">Project Tracker</h1>
-        <p className="text-sm text-gray-500 mt-1">Home Credit Philippines</p>
+        <p className="text-sm text-gray-500 mt-1">Internal · Home Credit Philippines</p>
       </div>
 
       <div className="card w-full max-w-sm">

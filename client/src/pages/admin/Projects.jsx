@@ -37,7 +37,7 @@ export default function Projects() {
     setFormErr('');
     setSaving(true);
     try {
-      const payload = { ...form, budgetHours: parseFloat(form.budgetHours) };
+      const payload = { ...form, budgetHours: form.budgetHours !== '' ? parseFloat(form.budgetHours) : null };
       if (editTarget) { await api.put(`/projects/${editTarget.id}`, payload); toast.success('Project updated'); }
       else { await api.post('/projects', payload); toast.success('Project created'); }
       setModal(false); setEditTarget(null); setForm(BLANK); load();
@@ -81,7 +81,7 @@ export default function Projects() {
                       {p.description && <p className="text-xs text-gray-400 truncate max-w-xs">{p.description}</p>}
                     </td>
                     <td>{p.billable ? <span className="text-green-600 text-xs font-medium">Billable</span> : <span className="text-gray-400 text-xs">Non-billable</span>}</td>
-                    <td className="text-gray-600">{p.budget_hours}h</td>
+                    <td className="text-gray-600">{p.budget_hours != null ? `${p.budget_hours}h` : '—'}</td>
                     <td className="min-w-[150px]"><BudgetBar logged={p.hoursLogged || 0} budget={p.budget_hours} /></td>
                     <td><StatusBadge status={p.status} /></td>
                     <td>
@@ -102,7 +102,7 @@ export default function Projects() {
         <form onSubmit={handleSave} className="space-y-4">
           <div><label className="label">Project name</label><input className="input" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required /></div>
           <div><label className="label">Description</label><textarea className="input resize-none" rows={2} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></div>
-          <div><label className="label">Budget hours</label><input type="number" min="0" step="0.5" className="input" value={form.budgetHours} onChange={e => setForm(f => ({ ...f, budgetHours: e.target.value }))} required /></div>
+          <div><label className="label">Budget hours <span className="text-gray-400 font-normal">(optional)</span></label><input type="number" min="0" step="0.5" className="input" placeholder="e.g. 200" value={form.budgetHours} onChange={e => setForm(f => ({ ...f, budgetHours: e.target.value }))} /></div>
           <div className="flex gap-4">
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <input type="checkbox" className="rounded" checked={form.billable} onChange={e => setForm(f => ({ ...f, billable: e.target.checked }))} />

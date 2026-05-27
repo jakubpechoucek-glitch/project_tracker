@@ -55,6 +55,8 @@ app.use((err, req, res, next) => {
 });
 
 if (require.main === module) {
+  const { registerWeeklyReportJob } = require('./jobs/weeklyReport');
+  registerWeeklyReportJob();
   app.listen(PORT, () => {
     console.log(`\n🚀 Project Tracker running on http://localhost:${PORT}`);
     if (isDev) console.log('   Frontend: http://localhost:5173');
