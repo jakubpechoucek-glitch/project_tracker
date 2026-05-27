@@ -1,0 +1,10 @@
+node_modules/
+client/node_modules/
+data/
+.env
+*.db
+*.sqlite
+client/dist/
+server/public/
+coverage/
+.DS_Store
