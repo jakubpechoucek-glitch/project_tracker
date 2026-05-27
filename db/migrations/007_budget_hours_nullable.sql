@@ -1,4 +1,7 @@
--- SQLite does not support DROP NOT NULL directly; recreate the table with budget_hours nullable
+-- SQLite does not support DROP NOT NULL directly; recreate the table with budget_hours nullable.
+-- Foreign keys must be OFF while we drop and rename the table.
+PRAGMA foreign_keys = OFF;
+
 DROP TABLE IF EXISTS projects_new;
 CREATE TABLE projects_new (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -15,3 +18,5 @@ INSERT INTO projects_new SELECT * FROM projects;
 DROP TABLE projects;
 ALTER TABLE projects_new RENAME TO projects;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_name ON projects(name);
+
+PRAGMA foreign_keys = ON;
