@@ -51,7 +51,7 @@ export default function AuditLog() {
           </form>
         </div>
 
-        {loading ? <SkeletonTable rows={8} cols={5} /> : data?.rows?.length === 0 ? (
+        {loading ? <SkeletonTable rows={8} cols={5} /> : !data?.rows?.length ? (
           <EmptyState icon={ShieldIcon} title="No audit entries" description="Actions will appear here as they occur." />
         ) : (
           <div className="card overflow-hidden">

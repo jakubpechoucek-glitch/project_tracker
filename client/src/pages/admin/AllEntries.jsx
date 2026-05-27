@@ -88,7 +88,7 @@ export default function AllEntries() {
 
         {loading ? <SkeletonTable rows={8} cols={7} /> : (
           <div className="card overflow-hidden">
-            {data?.rows?.length === 0 ? (
+            {!data?.rows?.length ? (
               <EmptyState icon={ListIcon} title="No entries found" description="Try adjusting your filters." />
             ) : (
               <>

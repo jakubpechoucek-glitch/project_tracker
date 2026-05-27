@@ -62,7 +62,7 @@ export default function MyEntries() {
         {/* Table */}
         {loading ? <SkeletonTable rows={5} cols={6} /> : (
           <div className="card overflow-hidden">
-            {data?.rows?.length === 0 ? (
+            {!data?.rows?.length ? (
               <EmptyState icon={ListIcon} title="No entries found" description="Start logging time from the Timesheet view." />
             ) : (
               <>
