@@ -4,8 +4,12 @@ const { success, created, error } = require('../utils/response');
 async function list(req, res) {
   try {
     const { pmId, projectId, dateFrom, dateTo, category, status, page, pageSize } = req.query;
+    // PMs can only list their own entries; admins can filter by any pmId
+    const effectivePmId = req.user.role === 'admin'
+      ? (pmId ? parseInt(pmId) : undefined)
+      : req.user.id;
     const result = entriesService.listEntries({
-      pmId: pmId ? parseInt(pmId) : undefined,
+      pmId: effectivePmId,
       projectId: projectId ? parseInt(projectId) : undefined,
       dateFrom, dateTo, category, status,
       page: parseInt(page) || 1,

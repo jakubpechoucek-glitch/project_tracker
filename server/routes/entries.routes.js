@@ -8,7 +8,7 @@ router.get('/week', requirePM, ctrl.getWeek);
 router.get('/pending', requireAdmin, ctrl.pending);
 router.get('/dashboard/admin', requireAdmin, ctrl.adminDashboard);
 router.get('/dashboard/pm', requirePM, ctrl.pmDashboard);
-router.get('/', requireAdmin, ctrl.list);
+router.get('/', requirePM, ctrl.list);
 router.post('/', requirePM, ctrl.create);
 router.put('/:id', requirePM, ctrl.update);
 router.delete('/:id', requirePM, ctrl.remove);
