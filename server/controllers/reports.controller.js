@@ -48,9 +48,12 @@ async function workload(req, res) {
   try {
     const data = reportsService.workloadReport(req.query);
     if (req.query.export === 'csv') {
+      const periodLabel = req.query.granularity === 'week' ? 'Week'
+                        : req.query.granularity === 'day'  ? 'Date'
+                        :                                    'Month';
       return csvResponse(res, toFilename('pm-workload'), data, [
         { key: 'pm_name', label: 'PM Name' },
-        { key: 'month', label: 'Month' },
+        { key: 'period', label: periodLabel },
         { key: 'total_hours', label: 'Total Hours' },
         { key: 'billable_hours', label: 'Billable Hours' },
         { key: 'non_billable_hours', label: 'Non-Billable Hours' },

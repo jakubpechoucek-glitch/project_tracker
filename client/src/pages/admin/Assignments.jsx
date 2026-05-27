@@ -11,6 +11,24 @@ import { format, startOfISOWeek } from 'date-fns';
 
 const LinkIcon = () => <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>;
 
+// 10-colour palette — deterministic from PM id
+const PALETTE = [
+  { dot: '#2563EB', bg: '#EFF6FF', text: '#1E40AF', border: '#BFDBFE' },
+  { dot: '#16A34A', bg: '#F0FDF4', text: '#166534', border: '#BBF7D0' },
+  { dot: '#D97706', bg: '#FFFBEB', text: '#92400E', border: '#FDE68A' },
+  { dot: '#7C3AED', bg: '#F5F3FF', text: '#5B21B6', border: '#DDD6FE' },
+  { dot: '#0891B2', bg: '#ECFEFF', text: '#155E75', border: '#A5F3FC' },
+  { dot: '#DB2777', bg: '#FDF2F8', text: '#9D174D', border: '#FBCFE8' },
+  { dot: '#059669', bg: '#ECFDF5', text: '#065F46', border: '#6EE7B7' },
+  { dot: '#EA580C', bg: '#FFF7ED', text: '#9A3412', border: '#FED7AA' },
+  { dot: '#4F46E5', bg: '#EEF2FF', text: '#3730A3', border: '#C7D2FE' },
+  { dot: '#0F766E', bg: '#F0FDFA', text: '#134E4A', border: '#99F6E4' },
+];
+
+function getPmColor(pmId) {
+  return PALETTE[pmId % PALETTE.length];
+}
+
 export default function Assignments() {
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -62,6 +80,14 @@ export default function Assignments() {
     } catch (err) { toast.error(err.response?.data?.error || 'Failed'); }
   }
 
+  // Group assignments by PM for colour-coded display
+  const grouped = assignments.reduce((acc, a) => {
+    if (!acc[a.pm_id]) acc[a.pm_id] = { pm_id: a.pm_id, pm_name: a.pm_name, items: [] };
+    acc[a.pm_id].items.push(a);
+    return acc;
+  }, {});
+  const pmGroups = Object.values(grouped).sort((a, b) => a.pm_name.localeCompare(b.pm_name));
+
   return (
     <AppLayout title="Assignments">
       <div className="space-y-4">
@@ -73,29 +99,52 @@ export default function Assignments() {
           <button className="btn-primary" onClick={() => { setModal(true); setForm({ pmId: '', projectId: '', assignedFrom: format(startOfISOWeek(new Date()), 'yyyy-MM-dd') }); setFormErr(''); }}>+ Assign PM</button>
         </div>
 
-        {loading ? <SkeletonTable /> : assignments.length === 0 ? (
+        {loading ? <SkeletonTable /> : pmGroups.length === 0 ? (
           <EmptyState icon={LinkIcon} title="No assignments" description="Assign a PM to a project to get started." action={<button className="btn-primary" onClick={() => setModal(true)}>Assign PM</button>} />
         ) : (
-          <div className="card overflow-hidden">
-            <table className="table-base">
-              <thead><tr><th>PM</th><th>Project</th><th>From</th><th>To</th><th>Status</th><th>Actions</th></tr></thead>
-              <tbody>
-                {assignments.map(a => (
-                  <tr key={a.id}>
-                    <td className="font-medium">{a.pm_name}</td>
-                    <td>{a.project_name}</td>
-                    <td>{a.assigned_from}</td>
-                    <td>{a.assigned_to || '—'}</td>
-                    <td><StatusBadge status={a.assigned_to ? 'archived' : 'active'} /></td>
-                    <td>
-                      {!a.assigned_to && (
-                        <button className="btn btn-ghost btn-sm text-red-500" onClick={() => { setEndTarget(a); setEndDate(format(new Date(), 'yyyy-MM-dd')); }}>End</button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="space-y-3">
+            {pmGroups.map(group => {
+              const color = getPmColor(group.pm_id);
+              return (
+                <div key={group.pm_id} className="card overflow-hidden" style={{ borderLeft: `4px solid ${color.dot}` }}>
+                  {/* PM header */}
+                  <div className="px-4 py-2 flex items-center gap-2" style={{ backgroundColor: color.bg }}>
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color.dot }} />
+                    <span className="text-sm font-semibold" style={{ color: color.text }}>{group.pm_name}</span>
+                    <span className="text-xs ml-1" style={{ color: color.text, opacity: 0.7 }}>
+                      {group.items.filter(i => !i.assigned_to).length} active · {group.items.length} total
+                    </span>
+                  </div>
+                  {/* Project rows */}
+                  <table className="table-base">
+                    <thead>
+                      <tr>
+                        <th>Project</th>
+                        <th>From</th>
+                        <th>To</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.items.map(a => (
+                        <tr key={a.id}>
+                          <td className="font-medium">{a.project_name}</td>
+                          <td>{a.assigned_from}</td>
+                          <td>{a.assigned_to || '—'}</td>
+                          <td><StatusBadge status={a.assigned_to ? 'archived' : 'active'} /></td>
+                          <td>
+                            {!a.assigned_to && (
+                              <button className="btn btn-ghost btn-sm text-red-500" onClick={() => { setEndTarget(a); setEndDate(format(new Date(), 'yyyy-MM-dd')); }}>End</button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -106,9 +155,22 @@ export default function Assignments() {
             <label className="label">PM</label>
             <select className="input" value={form.pmId} onChange={e => setForm(f => ({ ...f, pmId: e.target.value }))} required>
               <option value="">Select PM…</option>
-              {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+              {users.map(u => {
+                const c = getPmColor(u.id);
+                return <option key={u.id} value={u.id}>{u.name}</option>;
+              })}
             </select>
           </div>
+          {/* Color preview for selected PM */}
+          {form.pmId && (() => {
+            const c = getPmColor(parseInt(form.pmId));
+            return (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium" style={{ backgroundColor: c.bg, color: c.text }}>
+                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: c.dot }} />
+                {users.find(u => u.id === parseInt(form.pmId))?.name} will be assigned this color
+              </div>
+            );
+          })()}
           <div>
             <label className="label">Project</label>
             <select className="input" value={form.projectId} onChange={e => setForm(f => ({ ...f, projectId: e.target.value }))} required>

@@ -5,7 +5,7 @@ const { today } = require('../utils/date');
 // Hours per PM per project, grouped by month. Billable = project.billable = 1.
 function monthlySummary({ month, pmId, projectId } = {}) {
   const db = getDb();
-  const conditions = ["e.status IN ('pending','approved')"];
+  const conditions = ["e.status IN ('draft','pending','approved')"];
   const params = [];
   if (month)     { conditions.push("strftime('%Y-%m', e.date) = ?"); params.push(month); }
   if (pmId)      { conditions.push('e.pm_id = ?');                   params.push(pmId); }
@@ -34,7 +34,7 @@ function monthlySummary({ month, pmId, projectId } = {}) {
   if (prevMonth) {
     prevRows = db.prepare(`
       SELECT e.pm_id, e.project_id, SUM(e.hours) as prev_hours
-      FROM time_entries e WHERE status IN ('pending','approved')
+      FROM time_entries e WHERE status IN ('draft','pending','approved')
         AND strftime('%Y-%m', e.date) = ? GROUP BY e.pm_id, e.project_id
     `).all(prevMonth);
   }
@@ -97,45 +97,57 @@ function budgetReport({ projectId } = {}) {
 }
 
 // ── Report 3: PM Workload ────────────────────────────────────────────────────
-// avg_hours_day = total hours / working days in range (using calendar days for simplicity).
-function workloadReport({ month, pmId } = {}) {
+// granularity: 'month' (default) | 'week' | 'day'
+// avg_hours_day = total hours / days_worked in period
+function workloadReport({ month, dateFrom, dateTo, pmId, granularity = 'month' } = {}) {
   const db = getDb();
-  const conditions = ["e.status IN ('pending','approved')"];
+  const conditions = ["e.status IN ('draft','pending','approved')"];
   const params = [];
-  if (month) { conditions.push("strftime('%Y-%m', e.date) = ?"); params.push(month); }
-  if (pmId)  { conditions.push('e.pm_id = ?');                   params.push(pmId); }
+
+  if (granularity === 'month' && month) {
+    conditions.push("strftime('%Y-%m', e.date) = ?"); params.push(month);
+  }
+  if (dateFrom) { conditions.push('e.date >= ?'); params.push(dateFrom); }
+  if (dateTo)   { conditions.push('e.date <= ?'); params.push(dateTo); }
+  if (pmId)     { conditions.push('e.pm_id = ?'); params.push(pmId); }
+
   const where = `WHERE ${conditions.join(' AND ')}`;
+
+  const periodExpr = granularity === 'week' ? "strftime('%Y-W%W', e.date)"
+                   : granularity === 'day'  ? 'e.date'
+                   :                          "strftime('%Y-%m', e.date)";
 
   const rows = db.prepare(`
     SELECT
       u.id as pm_id, u.name as pm_name,
-      strftime('%Y-%m', e.date) as month,
+      ${periodExpr} as period,
       COUNT(DISTINCT e.date) as days_worked,
-      SUM(e.hours) as total_hours,
-      SUM(CASE WHEN p.billable = 1 THEN e.hours ELSE 0 END) as billable_hours,
-      SUM(CASE WHEN p.billable = 0 THEN e.hours ELSE 0 END) as non_billable_hours
+      ROUND(SUM(e.hours), 1) as total_hours,
+      ROUND(SUM(CASE WHEN p.billable = 1 THEN e.hours ELSE 0 END), 1) as billable_hours,
+      ROUND(SUM(CASE WHEN p.billable = 0 THEN e.hours ELSE 0 END), 1) as non_billable_hours
     FROM time_entries e
     JOIN users u ON u.id = e.pm_id
     JOIN projects p ON p.id = e.project_id
     ${where}
-    GROUP BY e.pm_id, strftime('%Y-%m', e.date)
-    ORDER BY u.name, month DESC
+    GROUP BY e.pm_id, ${periodExpr}
+    ORDER BY u.name, period DESC
   `).all(...params);
 
-  // 6-month trend per PM
-  const trend = db.prepare(`
-    SELECT e.pm_id, strftime('%Y-%m', e.date) as month, SUM(e.hours) as total_hours
-    FROM time_entries e
-    WHERE e.status IN ('pending','approved')
-      AND e.date >= date('now', '-6 months')
-    GROUP BY e.pm_id, strftime('%Y-%m', e.date)
-    ORDER BY e.pm_id, month
-  `).all();
-
+  // 6-month trend per PM (only meaningful for month view)
   const trendMap = {};
-  for (const t of trend) {
-    if (!trendMap[t.pm_id]) trendMap[t.pm_id] = [];
-    trendMap[t.pm_id].push({ month: t.month, total_hours: t.total_hours });
+  if (granularity === 'month') {
+    const trend = db.prepare(`
+      SELECT e.pm_id, strftime('%Y-%m', e.date) as month, SUM(e.hours) as total_hours
+      FROM time_entries e
+      WHERE e.status IN ('draft','pending','approved')
+        AND e.date >= date('now', '-6 months')
+      GROUP BY e.pm_id, strftime('%Y-%m', e.date)
+      ORDER BY e.pm_id, month
+    `).all();
+    for (const t of trend) {
+      if (!trendMap[t.pm_id]) trendMap[t.pm_id] = [];
+      trendMap[t.pm_id].push({ month: t.month, total_hours: t.total_hours });
+    }
   }
 
   return rows.map(r => ({
