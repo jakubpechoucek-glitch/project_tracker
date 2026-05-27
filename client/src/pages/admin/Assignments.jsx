@@ -128,7 +128,7 @@ export default function Assignments() {
                     </thead>
                     <tbody>
                       {group.items.map(a => (
-                        <tr key={a.id}>
+                        <tr key={a.id} style={{ backgroundColor: color.bg }}>
                           <td className="font-medium">{a.project_name}</td>
                           <td>{a.assigned_from}</td>
                           <td>{a.assigned_to || '—'}</td>
