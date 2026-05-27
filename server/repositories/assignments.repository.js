@@ -33,7 +33,12 @@ function findByPm(pmId) {
 
 function findActivePmProjects(pmId) {
   return getDb().prepare(`
-    SELECT a.*, p.name as project_name, p.billable, p.budget_hours, p.status as project_status, p.description
+    SELECT a.*, p.name as project_name, p.billable, p.budget_hours, p.status as project_status, p.description,
+           COALESCE((
+             SELECT SUM(e.hours)
+             FROM time_entries e
+             WHERE e.pm_id = a.pm_id AND e.project_id = a.project_id
+           ), 0) AS total_hours
     FROM project_assignments a
     JOIN projects p ON p.id = a.project_id
     WHERE a.pm_id = ?
