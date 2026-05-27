@@ -4,6 +4,25 @@ Full-stack time tracking web application for project managers. Built with Node.j
 
 ---
 
+## Deploy to Render
+
+1. Fork / push this repo to GitHub.
+2. Go to [render.com](https://render.com) → **New → Web Service** → connect your GitHub repo.
+3. Render auto-detects `render.yaml` — review the settings and click **Create Web Service**.
+4. Set the `JWT_SECRET` env var if you want a custom value (Render generates one automatically from `render.yaml`).
+5. After the first deploy, the app is live. The admin account (`jakub.pechoucek@homecredit.ph / Admin1234`) is created automatically on startup if the database is empty.
+
+### SQLite persistence on Render
+
+| Plan | Disk | Notes |
+|---|---|---|
+| **Free** | Ephemeral | DB resets on every deploy. Admin account is re-created automatically; PM accounts and entered data are lost. Fine for demos. |
+| **Starter ($7/mo)** | Persistent disk ($0.25/GB/mo) | Enable the disk block in `render.yaml` (already configured, just un-comment the plan line). Data survives deploys. |
+
+> For a production deployment with persistent data, either upgrade to Starter + disk, or swap `db/db.js` to use Render's managed PostgreSQL (see *Migrating to PostgreSQL* below).
+
+---
+
 ## Quick Start
 
 ```bash
