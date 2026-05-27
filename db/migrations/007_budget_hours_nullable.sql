@@ -1,5 +1,6 @@
 -- SQLite does not support DROP NOT NULL directly; recreate the table with budget_hours nullable
-CREATE TABLE IF NOT EXISTS projects_new (
+DROP TABLE IF EXISTS projects_new;
+CREATE TABLE projects_new (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
   description TEXT,
