@@ -8,13 +8,14 @@ const { weekStartOf, weekEndOf, today } = require('../utils/date');
 const MAX_HOURS_PER_ENTRY = 12;
 const MAX_HOURS_PER_DAY = 24;
 const WARN_HOURS_PER_DAY = 8;
-const MIN_HOURS = 0.5;
-const HOUR_INCREMENT = 0.5;
+const MIN_HOURS = 1 / 6;          // 10 minutes
+const HOUR_INCREMENT = 1 / 6;     // 10-minute steps
 
 function validateHours(hours) {
-  if (hours < MIN_HOURS) throw { status: 422, message: `Minimum hours per entry is ${MIN_HOURS}` };
+  if (hours < MIN_HOURS) throw { status: 422, message: 'Minimum time per entry is 10 minutes' };
   if (hours > MAX_HOURS_PER_ENTRY) throw { status: 422, message: `Maximum hours per entry is ${MAX_HOURS_PER_ENTRY}` };
-  if (Math.round(hours * 10) % 5 !== 0) throw { status: 422, message: 'Hours must be in 0.5 increments' };
+  // Must be a multiple of 10 minutes (allow ±1 sec rounding tolerance)
+  if (Math.round(hours * 60) % 10 !== 0) throw { status: 422, message: 'Time must be in 10-minute increments' };
 }
 
 async function validateEntryContext(pmId, projectId, date, excludeEntryId = null) {

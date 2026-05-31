@@ -10,6 +10,52 @@ import toast from 'react-hot-toast';
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const CATEGORIES = ['Planning', 'Meetings', 'Reporting', 'Problem Solving', 'Documentation', 'Other'];
 
+/**
+ * Parse a user-typed time string into decimal hours.
+ * Accepts:
+ *   plain integer  → minutes  (60 → 1h, 10 → 10min, 480 → 8h)
+ *   decimal        → hours    (1.5 → 1h30m, 0.5 → 30min)
+ *   "60m"/"90min"  → minutes  (90m → 1h30m)
+ *   "1h"/"2h"      → hours    (1h → 1h)
+ *   "1h30" / "1h30m" / "1:30" → 1.5h
+ * Returns hours (number) or null if unparseable.
+ */
+function parseTimeInput(raw) {
+  if (!raw || !String(raw).trim()) return null;
+  const s = String(raw).trim().toLowerCase().replace(/\s+/g, '');
+
+  // "1h30m" or "1h30" or "1:30"
+  const hmMatch = s.match(/^(\d+)(?:h|:)(\d{1,2})m?$/);
+  if (hmMatch) {
+    const h = parseInt(hmMatch[1], 10);
+    const m = parseInt(hmMatch[2], 10);
+    if (m >= 60) return null;
+    return h + m / 60;
+  }
+  // "90m" or "90min"
+  const minMatch = s.match(/^(\d+)m(?:in)?$/);
+  if (minMatch) return parseInt(minMatch[1], 10) / 60;
+  // "1.5h" or "1h"
+  const hMatch = s.match(/^(\d+\.?\d*)h$/);
+  if (hMatch) return parseFloat(hMatch[1]);
+  // bare decimal → hours (e.g. 1.5, 0.5)
+  if (/^\d+\.\d+$/.test(s)) return parseFloat(s);
+  // bare integer → minutes (e.g. 60, 480, 10)
+  if (/^\d+$/.test(s)) return parseInt(s, 10) / 60;
+  return null;
+}
+
+/** Format decimal hours as human-readable: "10m", "30m", "1h", "1h 30m" */
+function formatHours(hours) {
+  if (!hours || hours <= 0) return '';
+  const totalMin = Math.round(hours * 60);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
+
 function getWeekDates(anchor) {
   const start = startOfISOWeek(anchor);
   return Array.from({ length: 7 }, (_, i) => addDays(start, i));
@@ -35,6 +81,8 @@ export default function Timesheet() {
   const [submitOpen, setSubmitOpen] = useState(false);
   const [warnings, setWarnings] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState({});
+  const [editingCell, setEditingCell] = useState(null);   // "projId-dateStr"
+  const [editingValue, setEditingValue] = useState('');
 
   const fetchWeek = useCallback(async () => {
     setLoading(true);
@@ -71,9 +119,51 @@ export default function Timesheet() {
     return weekDates.reduce((sum, d) => sum + (parseFloat(grid[projectId]?.[format(d, 'yyyy-MM-dd')]?.hours) || 0), 0);
   }
 
-  function handleCellChange(projectId, dateStr, value) {
-    const hours = value === '' ? '' : parseFloat(value);
-    setGrid(g => ({ ...g, [projectId]: { ...g[projectId], [dateStr]: { ...(g[projectId]?.[dateStr] || {}), hours, status: g[projectId]?.[dateStr]?.status || 'draft' } } }));
+  function handleCellFocus(projectId, dateStr) {
+    const key = `${projectId}-${dateStr}`;
+    setEditingCell(key);
+    const hours = grid[projectId]?.[dateStr]?.hours;
+    // Show minutes as plain number when focusing (e.g. "60" for 1h) — easy to retype
+    setEditingValue(hours ? String(Math.round(hours * 60)) : '');
+  }
+
+  function handleCellChange(projectId, dateStr, rawValue) {
+    setEditingValue(rawValue);
+    const hours = parseTimeInput(rawValue);
+    if (hours !== null) {
+      setGrid(g => ({ ...g, [projectId]: { ...g[projectId], [dateStr]: { ...(g[projectId]?.[dateStr] || {}), hours, status: g[projectId]?.[dateStr]?.status || 'draft' } } }));
+    }
+  }
+
+  function handleCellBlur(projectId, dateStr) {
+    const hours = parseTimeInput(editingValue);
+    if (editingValue !== '' && hours === null) {
+      toast.error('Use minutes (60), hours (1h), or combined (1h30m / 1:30)');
+      // Clear invalid input
+      setGrid(g => {
+        const cell = g[projectId]?.[dateStr];
+        if (cell && !cell.id) {
+          const next = { ...g[projectId] };
+          delete next[dateStr];
+          return { ...g, [projectId]: next };
+        }
+        return g;
+      });
+    }
+    if (editingValue === '') {
+      // Clear the cell
+      setGrid(g => {
+        const cell = g[projectId]?.[dateStr];
+        if (cell && !cell.id) {
+          const next = { ...g[projectId] };
+          delete next[dateStr];
+          return { ...g, [projectId]: next };
+        }
+        return { ...g, [projectId]: { ...g[projectId], [dateStr]: { ...g[projectId]?.[dateStr], hours: '' } } };
+      });
+    }
+    setEditingCell(null);
+    setEditingValue('');
   }
 
   async function handleSave() {
@@ -189,7 +279,7 @@ export default function Timesheet() {
                       <th key={i} className={clsx('px-2 py-2 text-center min-w-[70px]', dt > 12 ? 'bg-red-50' : dt > 8 ? 'bg-amber-50' : '')}>
                         <div className="text-xs font-semibold text-gray-500">{DAYS[i]}</div>
                         <div className="text-xs text-gray-400">{format(d, 'MMM d')}</div>
-                        {dt > 0 && <div className={clsx('text-xs font-bold', dt > 12 ? 'text-red-600' : dt > 8 ? 'text-amber-600' : 'text-gray-600')}>{dt.toFixed(1)}h</div>}
+                        {dt > 0 && <div className={clsx('text-xs font-bold', dt > 12 ? 'text-red-600' : dt > 8 ? 'text-amber-600' : 'text-gray-600')}>{formatHours(dt)}</div>}
                       </th>
                     );
                   })}
@@ -214,24 +304,26 @@ export default function Timesheet() {
                         )}>
                           {isLocked ? (
                             <div className="flex flex-col items-center gap-0.5">
-                              <span className="font-medium text-gray-700">{cell.hours}</span>
+                              <span className="font-medium text-gray-700">{formatHours(cell.hours)}</span>
                               <StatusBadge status={cell.status} className="scale-75" />
                             </div>
                           ) : (
                             <input
-                              type="number" min="0.5" max="12" step="0.5"
+                              type="text"
                               className="text-center text-sm font-medium w-full bg-transparent border-0 outline-none py-2"
-                              value={cell?.hours ?? ''}
+                              value={editingCell === `${p.project_id}-${ds}` ? editingValue : formatHours(cell?.hours)}
+                              onFocus={() => handleCellFocus(p.project_id, ds)}
                               onChange={e => handleCellChange(p.project_id, ds, e.target.value)}
+                              onBlur={() => handleCellBlur(p.project_id, ds)}
                               placeholder="—"
-                              aria-label={`Hours for ${p.project_name} on ${format(d, 'MMM d')}`}
+                              aria-label={`Time for ${p.project_name} on ${format(d, 'MMM d')}`}
                             />
                           )}
                         </td>
                       );
                     })}
                     <td className="px-4 py-3 text-center font-semibold text-gray-700">
-                      {getProjectTotal(p.project_id).toFixed(1) || '—'}
+                      {formatHours(getProjectTotal(p.project_id)) || '—'}
                     </td>
                   </tr>
                 ))}
@@ -246,19 +338,27 @@ export default function Timesheet() {
                       <td key={i} className={clsx('px-2 py-2 text-center text-xs font-bold',
                         dt > 12 ? 'text-red-600' : dt > 8 ? 'text-amber-600' : 'text-gray-600'
                       )}>
-                        {dt > 0 ? `${dt.toFixed(1)}h` : '—'}
+                        {dt > 0 ? formatHours(dt) : '—'}
                         {dt > 12 && ' 🔴'}
                         {dt > 8 && dt <= 12 && ' ⚠'}
                       </td>
                     );
                   })}
                   <td className="px-4 py-2 text-center text-xs font-bold text-gray-700">
-                    {weekDates.reduce((s, d) => s + getDayTotal(format(d, 'yyyy-MM-dd')), 0).toFixed(1)}h
+                    {formatHours(weekDates.reduce((s, d) => s + getDayTotal(format(d, 'yyyy-MM-dd')), 0))}
                   </td>
                 </tr>
               </tfoot>
             </table>
           )}
+        </div>
+
+        {/* Input hint */}
+        <div className="text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2 border border-gray-100">
+          <span className="font-medium text-gray-500">Entering time:</span>{' '}
+          type minutes (<span className="font-mono">60</span> = 1h, <span className="font-mono">90</span> = 1h 30m, <span className="font-mono">10</span> = 10m),
+          or use <span className="font-mono">1h</span>, <span className="font-mono">1h30m</span>, <span className="font-mono">1:30</span>, or decimal hours like <span className="font-mono">1.5</span>.
+          Minimum 10 minutes.
         </div>
 
         {/* Legend */}
