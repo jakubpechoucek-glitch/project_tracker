@@ -19,17 +19,21 @@ function getUser(id) {
   return { ...user, password_hash: undefined, ...stats, assignments };
 }
 
-async function createUser(adminId, { name, email, password }) {
+async function createUser(adminId, { name, email, password, role = 'pm' }) {
   const existing = usersRepo.findByEmail(email);
   if (existing) throw { status: 409, message: 'A user with this email already exists' };
+
+  if (!['pm', 'admin'].includes(role)) {
+    throw { status: 422, message: 'Role must be pm or admin' };
+  }
 
   if (!PASSWORD_POLICY.test(password)) {
     throw { status: 422, message: 'Password must be at least 8 characters with uppercase, lowercase, and a number' };
   }
 
   const hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
-  const result = usersRepo.create({ name, email, passwordHash: hash, role: 'pm', isFirstLogin: 1 });
-  audit.log(adminId, 'CREATE', 'user', result.lastInsertRowid, { name, email, role: 'pm' });
+  const result = usersRepo.create({ name, email, passwordHash: hash, role, isFirstLogin: 1 });
+  audit.log(adminId, 'CREATE', 'user', result.lastInsertRowid, { name, email, role });
   return usersRepo.findById(result.lastInsertRowid);
 }
 
