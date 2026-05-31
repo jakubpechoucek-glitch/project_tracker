@@ -1,6 +1,9 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/activities.controller');
-const { requirePM, requireAdmin } = require('../middleware/auth.middleware');
+const { authenticate } = require('../middleware/auth.middleware');
+const { requireAdmin, requirePM } = require('../middleware/role.middleware');
+
+router.use(authenticate);
 
 router.get('/',                   requirePM,    ctrl.list);        // PMs need this for the timesheet dropdown
 router.post('/',                  requireAdmin, ctrl.create);
