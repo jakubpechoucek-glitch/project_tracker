@@ -23,6 +23,7 @@ import BudgetReport from './pages/admin/reports/BudgetReport';
 import WorkloadReport from './pages/admin/reports/WorkloadReport';
 import TimelineReport from './pages/admin/reports/TimelineReport';
 import ApprovalReport from './pages/admin/reports/ApprovalReport';
+import ActivityReport from './pages/admin/reports/ActivityReport';
 import Suggestions from './pages/shared/Suggestions';
 
 function ProtectedRoute({ children }) {
@@ -86,6 +87,7 @@ export default function App() {
             <Route path="workload" element={<WorkloadReport />} />
             <Route path="timeline" element={<TimelineReport />} />
             <Route path="approval" element={<ApprovalReport />} />
+            <Route path="activity" element={<ActivityReport />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

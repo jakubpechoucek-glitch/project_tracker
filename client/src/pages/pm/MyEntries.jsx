@@ -18,13 +18,19 @@ export default function MyEntries() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [filters, setFilters] = useState({ status: '', dateFrom: '', dateTo: '' });
+  const [filters, setFilters] = useState({ status: '', category: '', dateFrom: '', dateTo: '' });
+  const [activities, setActivities] = useState([]);
+
+  useEffect(() => {
+    api.get('/activities').then(r => setActivities(r.data.data));
+  }, []);
 
   async function load(p = page) {
     setLoading(true);
     try {
       const params = new URLSearchParams({ pmId: user.id, page: p, pageSize: 20 });
       if (filters.status) params.set('status', filters.status);
+      if (filters.category) params.set('category', filters.category);
       if (filters.dateFrom) params.set('dateFrom', filters.dateFrom);
       if (filters.dateTo) params.set('dateTo', filters.dateTo);
       const res = await api.get(`/entries?${params}`);
@@ -53,9 +59,13 @@ export default function MyEntries() {
               <option value="">All statuses</option>
               {['draft', 'pending', 'approved', 'rejected'].map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
             </select>
+            <select className="input w-40" value={filters.category} onChange={e => { setFilters(f => ({ ...f, category: e.target.value })); setPage(1); }}>
+              <option value="">All activities</option>
+              {activities.map(a => <option key={a.id} value={a.name}>{a.name}</option>)}
+            </select>
             <input type="date" className="input w-40" value={filters.dateFrom} onChange={e => { setFilters(f => ({ ...f, dateFrom: e.target.value })); setPage(1); }} />
             <input type="date" className="input w-40" value={filters.dateTo} onChange={e => { setFilters(f => ({ ...f, dateTo: e.target.value })); setPage(1); }} />
-            <button className="btn btn-ghost btn-sm" onClick={() => { setFilters({ status: '', dateFrom: '', dateTo: '' }); setPage(1); }}>Clear</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => { setFilters({ status: '', category: '', dateFrom: '', dateTo: '' }); setPage(1); }}>Clear</button>
           </div>
         </div>
 

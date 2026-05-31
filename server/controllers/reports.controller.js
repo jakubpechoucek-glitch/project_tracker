@@ -98,4 +98,21 @@ async function approval(req, res) {
   } catch (err) { error(res, err.message, err.status || 500); }
 }
 
-module.exports = { monthly, budget, workload, timeline, approval };
+async function activity(req, res) {
+  try {
+    const data = reportsService.activityBreakdown(req.query);
+    if (req.query.export === 'csv') {
+      return csvResponse(res, toFilename('activity-breakdown'), data, [
+        { key: 'activity',      label: 'Activity' },
+        { key: 'total_hours',   label: 'Total Hours' },
+        { key: 'pct',           label: '% of Total' },
+        { key: 'entry_count',   label: 'Entries' },
+        { key: 'pm_count',      label: 'PMs' },
+        { key: 'project_count', label: 'Projects' },
+      ]);
+    }
+    success(res, data);
+  } catch (err) { error(res, err.message, err.status || 500); }
+}
+
+module.exports = { monthly, budget, workload, timeline, approval, activity };

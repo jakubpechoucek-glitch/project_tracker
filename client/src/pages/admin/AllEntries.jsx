@@ -9,20 +9,20 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 
 const ListIcon = () => <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>;
-const CATEGORIES = ['Planning', 'Meetings', 'Reporting', 'Problem Solving', 'Documentation', 'Other'];
-
 export default function AllEntries() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [users, setUsers] = useState([]);
   const [projects, setProjects] = useState([]);
+  const [activities, setActivities] = useState([]);
   const [filters, setFilters] = useState({ pmId: '', projectId: '', status: '', category: '', dateFrom: '', dateTo: '' });
   const [rejectDialog, setRejectDialog] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
 
   useEffect(() => {
     api.get('/users?includeInactive=true').then(r => setUsers(r.data.data));
+    api.get('/activities?includeInactive=true').then(r => setActivities(r.data.data));
     api.get('/projects?includeArchived=true').then(r => setProjects(r.data.data));
   }, []);
 
@@ -77,8 +77,8 @@ export default function AllEntries() {
               {['draft', 'pending', 'approved', 'rejected'].map(s => <option key={s} value={s}>{s}</option>)}
             </select>
             <select className="input w-40" value={filters.category} onChange={e => setFilter('category', e.target.value)}>
-              <option value="">All categories</option>
-              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              <option value="">All activities</option>
+              {activities.map(a => <option key={a.id} value={a.name}>{a.name}</option>)}
             </select>
             <input type="date" className="input w-40" value={filters.dateFrom} onChange={e => setFilter('dateFrom', e.target.value)} />
             <input type="date" className="input w-40" value={filters.dateTo} onChange={e => setFilter('dateTo', e.target.value)} />

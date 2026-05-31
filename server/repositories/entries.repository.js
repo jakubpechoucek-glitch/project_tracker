@@ -186,9 +186,41 @@ function getHoursPerProject(month) {
   `).all(month);
 }
 
+/** Hours grouped by category for a PM over a date range */
+function getActivityBreakdownPm(pmId, dateFrom, dateTo) {
+  return getDb().prepare(`
+    SELECT
+      COALESCE(e.category, 'Other') as activity,
+      ROUND(SUM(e.hours), 1)        as total_hours,
+      COUNT(*)                      as entry_count
+    FROM time_entries e
+    WHERE e.pm_id = ?
+      AND e.date >= ? AND e.date <= ?
+      AND e.status IN ('draft','pending','approved')
+    GROUP BY COALESCE(e.category, 'Other')
+    ORDER BY total_hours DESC
+  `).all(pmId, dateFrom, dateTo);
+}
+
+/** Hours grouped by category across all PMs for a month (admin) */
+function getActivityBreakdownAdmin(dateFrom, dateTo) {
+  return getDb().prepare(`
+    SELECT
+      COALESCE(e.category, 'Other') as activity,
+      ROUND(SUM(e.hours), 1)        as total_hours,
+      COUNT(*)                      as entry_count
+    FROM time_entries e
+    WHERE e.date >= ? AND e.date <= ?
+      AND e.status IN ('draft','pending','approved')
+    GROUP BY COALESCE(e.category, 'Other')
+    ORDER BY total_hours DESC
+  `).all(dateFrom, dateTo);
+}
+
 module.exports = {
   findAll, findByPmAndWeek, findById, findDuplicate, getDailyTotal,
   create, update, updateStatus, submitWeek, remove,
   findPendingGroupedByPmWeek, findPendingForPmWeek,
-  getWeeklySummary, getAdminWeeklySummary, getHoursPerProject
+  getWeeklySummary, getAdminWeeklySummary, getHoursPerProject,
+  getActivityBreakdownPm, getActivityBreakdownAdmin,
 };

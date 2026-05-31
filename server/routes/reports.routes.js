@@ -9,5 +9,6 @@ router.get('/budget', ctrl.budget);
 router.get('/workload', ctrl.workload);
 router.get('/timeline', ctrl.timeline);
 router.get('/approval', ctrl.approval);
+router.get('/activity', ctrl.activity);
 
 module.exports = router;

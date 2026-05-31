@@ -200,16 +200,25 @@ function getPendingApprovals() {
 function getAdminDashboard() {
   const summary = entriesRepo.getAdminWeeklySummary();
   const now = new Date();
-  const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const month = `${y}-${m}`;
+  const monthStart = `${y}-${m}-01`;
+  const monthEnd = new Date(y, now.getMonth() + 1, 0).toISOString().slice(0, 10);
   const hoursPerProject = entriesRepo.getHoursPerProject(month);
   const activeAssignments = assignmentsRepo.findActive();
-  return { summary, hoursPerProject, activeAssignments };
+  const activityBreakdown = entriesRepo.getActivityBreakdownAdmin(monthStart, monthEnd);
+  return { summary, hoursPerProject, activeAssignments, activityBreakdown };
 }
 
 function getPmDashboard(pmId) {
   const summary = entriesRepo.getWeeklySummary(pmId);
   const activeProjects = assignmentsRepo.findActivePmProjects(pmId);
-  return { summary, activeProjects };
+  // This week Mon–Sun
+  const weekStart = weekStartOf(today());
+  const weekEnd   = weekEndOf(today());
+  const activityBreakdown = entriesRepo.getActivityBreakdownPm(pmId, weekStart, weekEnd);
+  return { summary, activeProjects, activityBreakdown };
 }
 
 const { findActive: findActiveAssignments } = require('../repositories/assignments.repository');

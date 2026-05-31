@@ -97,6 +97,29 @@ export default function AdminDashboard() {
           </div>
         </div>
 
+        {/* Activity breakdown this month */}
+        <div className="card card-body">
+          <h2 className="mb-4">Hours by activity (this month)</h2>
+          {loading ? <div className="h-48 bg-gray-100 rounded animate-pulse" /> : (
+            !data?.activityBreakdown?.length ? (
+              <p className="text-sm text-gray-400 py-8 text-center">No hours logged this month.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={data.activityBreakdown} margin={{ top: 5, right: 5, bottom: 30, left: 0 }}>
+                  <XAxis dataKey="activity" tick={{ fontSize: 11 }} angle={-20} textAnchor="end" interval={0} />
+                  <YAxis tick={{ fontSize: 11 }} unit="h" />
+                  <Tooltip formatter={(v, name, props) => [`${v}h (${props.payload.pct}%)`, 'Hours']} />
+                  <Bar dataKey="total_hours" radius={[4, 4, 0, 0]}>
+                    {data.activityBreakdown.map((_, i) => (
+                      <Cell key={i} fill="#E30613" fillOpacity={0.85 - i * 0.08} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )
+          )}
+        </div>
+
         {/* Active assignments */}
         <div className="card">
           <div className="card-body border-b border-gray-100">

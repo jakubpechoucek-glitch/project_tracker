@@ -8,6 +8,7 @@ const TABS = [
   { to: '/admin/reports/workload', label: 'PM Workload' },
   { to: '/admin/reports/timeline', label: 'Timeline' },
   { to: '/admin/reports/approval', label: 'Approvals' },
+  { to: '/admin/reports/activity', label: 'Activity' },
 ];
 
 export default function ReportsLayout() {

@@ -214,10 +214,42 @@ function approvalReport({ dateFrom, dateTo, pmId } = {}) {
   }));
 }
 
+// ── Report 6: Activity Breakdown ─────────────────────────────────────────────
+// Hours per activity, optionally filtered by PM, project, and date range.
+function activityBreakdown({ dateFrom, dateTo, pmId, projectId } = {}) {
+  const db = getDb();
+  const conditions = ["e.status IN ('draft','pending','approved')"];
+  const params = [];
+  if (dateFrom)  { conditions.push('e.date >= ?');      params.push(dateFrom); }
+  if (dateTo)    { conditions.push('e.date <= ?');       params.push(dateTo); }
+  if (pmId)      { conditions.push('e.pm_id = ?');       params.push(pmId); }
+  if (projectId) { conditions.push('e.project_id = ?');  params.push(projectId); }
+  const where = `WHERE ${conditions.join(' AND ')}`;
+
+  const rows = db.prepare(`
+    SELECT
+      COALESCE(e.category, 'Other') as activity,
+      ROUND(SUM(e.hours), 1)        as total_hours,
+      COUNT(*)                      as entry_count,
+      COUNT(DISTINCT e.pm_id)       as pm_count,
+      COUNT(DISTINCT e.project_id)  as project_count
+    FROM time_entries e
+    ${where}
+    GROUP BY COALESCE(e.category, 'Other')
+    ORDER BY total_hours DESC
+  `).all(...params);
+
+  const grandTotal = rows.reduce((s, r) => s + r.total_hours, 0);
+  return rows.map(r => ({
+    ...r,
+    pct: grandTotal > 0 ? Math.round((r.total_hours / grandTotal) * 1000) / 10 : 0,
+  }));
+}
+
 function prevMonthOf(ym) {
   const [y, m] = ym.split('-').map(Number);
   const d = new Date(y, m - 2, 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-module.exports = { monthlySummary, budgetReport, workloadReport, assignmentTimeline, approvalReport };
+module.exports = { monthlySummary, budgetReport, workloadReport, assignmentTimeline, approvalReport, activityBreakdown };
