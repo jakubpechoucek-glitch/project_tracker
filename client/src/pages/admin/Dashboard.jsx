@@ -1,12 +1,27 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend } from 'recharts';
 import AppLayout from '../../components/layout/AppLayout';
 import SummaryCard from '../../components/ui/SummaryCard';
 import BudgetBar from '../../components/ui/BudgetBar';
 import { SkeletonCard } from '../../components/ui/LoadingSkeleton';
 import api from '../../services/api';
 import { format } from 'date-fns';
+
+const ACT_COLORS = ['#E30613', '#F97316', '#EAB308', '#22C55E', '#3B82F6', '#8B5CF6', '#EC4899'];
+
+function toStackedData(byProject) {
+  const allActs = [...new Set((byProject || []).flatMap(p => p.activities.map(a => a.activity)))];
+  const chartData = (byProject || []).map(p => {
+    const row = { project_name: p.project_name.length > 14 ? p.project_name.slice(0, 13) + '…' : p.project_name, _full: p.project_name };
+    for (const act of allActs) {
+      const found = p.activities.find(a => a.activity === act);
+      row[act] = found ? found.total_hours : 0;
+    }
+    return row;
+  });
+  return { chartData, allActs };
+}
 
 const ClockIcon = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
 const CalIcon = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
@@ -97,27 +112,27 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Activity breakdown this month */}
+        {/* Activity breakdown by project this month */}
         <div className="card card-body">
-          <h2 className="mb-4">Hours by activity (this month)</h2>
-          {loading ? <div className="h-48 bg-gray-100 rounded animate-pulse" /> : (
-            !data?.activityBreakdown?.length ? (
+          <h2 className="mb-4">Activity breakdown by project (this month)</h2>
+          {loading ? <div className="h-48 bg-gray-100 rounded animate-pulse" /> : (() => {
+            const { chartData, allActs } = toStackedData(data?.activityByProject);
+            return !chartData.length ? (
               <p className="text-sm text-gray-400 py-8 text-center">No hours logged this month.</p>
             ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={data.activityBreakdown} margin={{ top: 5, right: 5, bottom: 30, left: 0 }}>
-                  <XAxis dataKey="activity" tick={{ fontSize: 11 }} angle={-20} textAnchor="end" interval={0} />
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={chartData} margin={{ top: 5, right: 5, bottom: 35, left: 0 }}>
+                  <XAxis dataKey="project_name" tick={{ fontSize: 10 }} angle={-20} textAnchor="end" interval={0} />
                   <YAxis tick={{ fontSize: 11 }} unit="h" />
-                  <Tooltip formatter={(v, name, props) => [`${v}h (${props.payload.pct}%)`, 'Hours']} />
-                  <Bar dataKey="total_hours" radius={[4, 4, 0, 0]}>
-                    {data.activityBreakdown.map((_, i) => (
-                      <Cell key={i} fill="#E30613" fillOpacity={0.85 - i * 0.08} />
-                    ))}
-                  </Bar>
+                  <Tooltip formatter={(v, name) => [`${v}h`, name]} labelFormatter={(label, payload) => payload?.[0]?.payload?._full || label} />
+                  <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+                  {allActs.map((act, i) => (
+                    <Bar key={act} dataKey={act} stackId="a" fill={ACT_COLORS[i % ACT_COLORS.length]} radius={i === allActs.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]} />
+                  ))}
                 </BarChart>
               </ResponsiveContainer>
-            )
-          )}
+            );
+          })()}
         </div>
 
         {/* Active assignments */}

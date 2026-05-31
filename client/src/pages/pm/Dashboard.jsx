@@ -8,7 +8,25 @@ import StatusBadge from '../../components/ui/StatusBadge';
 import { SkeletonCard } from '../../components/ui/LoadingSkeleton';
 import api from '../../services/api';
 
-const ACTIVITY_COLORS = ['#E30613', '#c0050f', '#a0040c', '#800309', '#600207', '#400105'];
+const ACTIVITY_COLORS = ['#E30613', '#F97316', '#EAB308', '#22C55E', '#3B82F6', '#8B5CF6', '#EC4899'];
+
+function ActivityMiniBar({ activities, total }) {
+  if (!activities?.length) return <p className="text-xs text-gray-400">No activity data</p>;
+  return (
+    <div className="space-y-1 mt-2">
+      {activities.map((a, i) => (
+        <div key={a.activity} className="flex items-center gap-2 text-xs">
+          <div className="w-24 shrink-0 text-gray-500 truncate">{a.activity}</div>
+          <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+            <div className="h-1.5 rounded-full" style={{ width: `${a.pct}%`, backgroundColor: ACTIVITY_COLORS[i % ACTIVITY_COLORS.length] }} />
+          </div>
+          <div className="w-10 text-right text-gray-600">{a.total_hours}h</div>
+          <div className="w-8 text-right text-gray-400">{a.pct}%</div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 const ClockIcon = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
 const CalIcon = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
@@ -89,7 +107,7 @@ export default function PMDashboard() {
           )}
         </div>
 
-        {/* Active projects */}
+        {/* Active projects with activity breakdown */}
         <div className="card">
           <div className="card-body border-b border-gray-100 flex items-center justify-between">
             <h2>My active projects</h2>
@@ -102,7 +120,7 @@ export default function PMDashboard() {
             <div className="divide-y divide-gray-100">
               {data?.activeProjects?.map(p => {
                 const logged = p.total_hours || 0;
-                const pct = p.budget_hours > 0 ? (logged / p.budget_hours) * 100 : 0;
+                const projectBreakdown = data?.activityByProject?.find(x => x.project_id === p.id);
                 return (
                   <div key={p.id} className="px-6 py-4 space-y-2">
                     <div className="flex items-center justify-between">
@@ -110,6 +128,16 @@ export default function PMDashboard() {
                       <StatusBadge status={p.project_status} />
                     </div>
                     <BudgetBar logged={logged} budget={p.budget_hours} />
+                    {projectBreakdown && (
+                      <details className="group">
+                        <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600 select-none list-none flex items-center gap-1 mt-1">
+                          <span className="group-open:hidden">▸</span>
+                          <span className="hidden group-open:inline">▾</span>
+                          Activity breakdown this week
+                        </summary>
+                        <ActivityMiniBar activities={projectBreakdown.activities} total={projectBreakdown.total_hours} />
+                      </details>
+                    )}
                   </div>
                 );
               })}

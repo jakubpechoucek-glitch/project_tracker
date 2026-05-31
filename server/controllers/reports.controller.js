@@ -115,4 +115,34 @@ async function activity(req, res) {
   } catch (err) { error(res, err.message, err.status || 500); }
 }
 
-module.exports = { monthly, budget, workload, timeline, approval, activity };
+async function activityProject(req, res) {
+  try {
+    const data = reportsService.activityByProject(req.query);
+    if (req.query.export === 'csv') {
+      // Flatten nested structure for CSV
+      const flat = data.flatMap(p =>
+        p.activities.map(a => ({
+          project_name: p.project_name,
+          billable: p.billable ? 'Yes' : 'No',
+          project_total_hours: p.total_hours,
+          activity: a.activity,
+          activity_hours: a.total_hours,
+          pct_of_project: a.pct,
+          entry_count: a.entry_count,
+        }))
+      );
+      return csvResponse(res, toFilename('activity-by-project'), flat, [
+        { key: 'project_name',       label: 'Project' },
+        { key: 'billable',           label: 'Billable' },
+        { key: 'project_total_hours',label: 'Project Total (h)' },
+        { key: 'activity',           label: 'Activity' },
+        { key: 'activity_hours',     label: 'Activity Hours' },
+        { key: 'pct_of_project',     label: '% of Project' },
+        { key: 'entry_count',        label: 'Entries' },
+      ]);
+    }
+    success(res, data);
+  } catch (err) { error(res, err.message, err.status || 500); }
+}
+
+module.exports = { monthly, budget, workload, timeline, approval, activity, activityProject };

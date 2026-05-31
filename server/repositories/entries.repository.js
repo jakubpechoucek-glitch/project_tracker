@@ -217,10 +217,65 @@ function getActivityBreakdownAdmin(dateFrom, dateTo) {
   `).all(dateFrom, dateTo);
 }
 
+/** Hours grouped by project+activity for a PM over a date range */
+function getActivityByProjectPm(pmId, dateFrom, dateTo) {
+  const rows = getDb().prepare(`
+    SELECT
+      p.id as project_id, p.name as project_name,
+      COALESCE(e.category, 'Other') as activity,
+      ROUND(SUM(e.hours), 1) as total_hours,
+      COUNT(*) as entry_count
+    FROM time_entries e
+    JOIN projects p ON p.id = e.project_id
+    WHERE e.pm_id = ? AND e.date >= ? AND e.date <= ?
+      AND e.status IN ('draft','pending','approved')
+    GROUP BY p.id, COALESCE(e.category, 'Other')
+    ORDER BY p.name, total_hours DESC
+  `).all(pmId, dateFrom, dateTo);
+  return groupByProject(rows);
+}
+
+/** Hours grouped by project+activity across all PMs for a date range (admin) */
+function getActivityByProjectAdmin(dateFrom, dateTo) {
+  const rows = getDb().prepare(`
+    SELECT
+      p.id as project_id, p.name as project_name,
+      COALESCE(e.category, 'Other') as activity,
+      ROUND(SUM(e.hours), 1) as total_hours,
+      COUNT(*) as entry_count
+    FROM time_entries e
+    JOIN projects p ON p.id = e.project_id
+    WHERE e.date >= ? AND e.date <= ?
+      AND e.status IN ('draft','pending','approved')
+    GROUP BY p.id, COALESCE(e.category, 'Other')
+    ORDER BY p.name, total_hours DESC
+  `).all(dateFrom, dateTo);
+  return groupByProject(rows);
+}
+
+function groupByProject(rows) {
+  const map = {};
+  for (const r of rows) {
+    if (!map[r.project_id]) {
+      map[r.project_id] = { project_id: r.project_id, project_name: r.project_name, total_hours: 0, activities: [] };
+    }
+    map[r.project_id].total_hours = Math.round((map[r.project_id].total_hours + r.total_hours) * 10) / 10;
+    map[r.project_id].activities.push({ activity: r.activity, total_hours: r.total_hours, entry_count: r.entry_count });
+  }
+  return Object.values(map).map(p => ({
+    ...p,
+    activities: p.activities.map(a => ({
+      ...a,
+      pct: p.total_hours > 0 ? Math.round((a.total_hours / p.total_hours) * 1000) / 10 : 0,
+    })),
+  })).sort((a, b) => b.total_hours - a.total_hours);
+}
+
 module.exports = {
   findAll, findByPmAndWeek, findById, findDuplicate, getDailyTotal,
   create, update, updateStatus, submitWeek, remove,
   findPendingGroupedByPmWeek, findPendingForPmWeek,
   getWeeklySummary, getAdminWeeklySummary, getHoursPerProject,
   getActivityBreakdownPm, getActivityBreakdownAdmin,
+  getActivityByProjectPm, getActivityByProjectAdmin,
 };

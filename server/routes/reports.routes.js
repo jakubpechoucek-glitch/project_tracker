@@ -10,5 +10,6 @@ router.get('/workload', ctrl.workload);
 router.get('/timeline', ctrl.timeline);
 router.get('/approval', ctrl.approval);
 router.get('/activity', ctrl.activity);
+router.get('/activity-by-project', ctrl.activityProject);
 
 module.exports = router;

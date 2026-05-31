@@ -208,7 +208,8 @@ function getAdminDashboard() {
   const hoursPerProject = entriesRepo.getHoursPerProject(month);
   const activeAssignments = assignmentsRepo.findActive();
   const activityBreakdown = entriesRepo.getActivityBreakdownAdmin(monthStart, monthEnd);
-  return { summary, hoursPerProject, activeAssignments, activityBreakdown };
+  const activityByProject = entriesRepo.getActivityByProjectAdmin(monthStart, monthEnd);
+  return { summary, hoursPerProject, activeAssignments, activityBreakdown, activityByProject };
 }
 
 function getPmDashboard(pmId) {
@@ -218,7 +219,8 @@ function getPmDashboard(pmId) {
   const weekStart = weekStartOf(today());
   const weekEnd   = weekEndOf(today());
   const activityBreakdown = entriesRepo.getActivityBreakdownPm(pmId, weekStart, weekEnd);
-  return { summary, activeProjects, activityBreakdown };
+  const activityByProject = entriesRepo.getActivityByProjectPm(pmId, weekStart, weekEnd);
+  return { summary, activeProjects, activityBreakdown, activityByProject };
 }
 
 const { findActive: findActiveAssignments } = require('../repositories/assignments.repository');

@@ -246,10 +246,59 @@ function activityBreakdown({ dateFrom, dateTo, pmId, projectId } = {}) {
   }));
 }
 
+// ── Report 7: Activity Breakdown by Project ──────────────────────────────────
+// For each project: which activities were logged, how many hours, what %.
+function activityByProject({ dateFrom, dateTo, pmId, projectId } = {}) {
+  const db = getDb();
+  const conditions = ["e.status IN ('draft','pending','approved')"];
+  const params = [];
+  if (dateFrom)  { conditions.push('e.date >= ?');      params.push(dateFrom); }
+  if (dateTo)    { conditions.push('e.date <= ?');       params.push(dateTo); }
+  if (pmId)      { conditions.push('e.pm_id = ?');       params.push(pmId); }
+  if (projectId) { conditions.push('e.project_id = ?');  params.push(projectId); }
+  const where = `WHERE ${conditions.join(' AND ')}`;
+
+  const rows = db.prepare(`
+    SELECT
+      p.id as project_id, p.name as project_name, p.billable,
+      COALESCE(e.category, 'Other') as activity,
+      ROUND(SUM(e.hours), 1)        as total_hours,
+      COUNT(*)                      as entry_count
+    FROM time_entries e
+    JOIN projects p ON p.id = e.project_id
+    ${where}
+    GROUP BY p.id, COALESCE(e.category, 'Other')
+    ORDER BY p.name, total_hours DESC
+  `).all(...params);
+
+  const map = {};
+  for (const r of rows) {
+    if (!map[r.project_id]) {
+      map[r.project_id] = {
+        project_id: r.project_id,
+        project_name: r.project_name,
+        billable: !!r.billable,
+        total_hours: 0,
+        activities: [],
+      };
+    }
+    map[r.project_id].total_hours = Math.round((map[r.project_id].total_hours + r.total_hours) * 10) / 10;
+    map[r.project_id].activities.push({ activity: r.activity, total_hours: r.total_hours, entry_count: r.entry_count });
+  }
+
+  return Object.values(map).map(p => ({
+    ...p,
+    activities: p.activities.map(a => ({
+      ...a,
+      pct: p.total_hours > 0 ? Math.round((a.total_hours / p.total_hours) * 1000) / 10 : 0,
+    })),
+  })).sort((a, b) => b.total_hours - a.total_hours);
+}
+
 function prevMonthOf(ym) {
   const [y, m] = ym.split('-').map(Number);
   const d = new Date(y, m - 2, 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-module.exports = { monthlySummary, budgetReport, workloadReport, assignmentTimeline, approvalReport, activityBreakdown };
+module.exports = { monthlySummary, budgetReport, workloadReport, assignmentTimeline, approvalReport, activityBreakdown, activityByProject };
