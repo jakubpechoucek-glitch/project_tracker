@@ -8,7 +8,6 @@ import clsx from 'clsx';
 import toast from 'react-hot-toast';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const CATEGORIES = ['Planning', 'Meetings', 'Reporting', 'Problem Solving', 'Documentation', 'Other'];
 
 /**
  * Parse a user-typed time string into decimal hours.
@@ -74,6 +73,7 @@ export default function Timesheet() {
   const weekEnd = format(weekDates[6], 'yyyy-MM-dd');
 
   const [projects, setProjects] = useState([]);
+  const [activities, setActivities] = useState([]);
   const [entries, setEntries] = useState([]);
   const [grid, setGrid] = useState({});
   const [loading, setLoading] = useState(true);
@@ -83,6 +83,10 @@ export default function Timesheet() {
   const [selectedCategory, setSelectedCategory] = useState({});
   const [editingCell, setEditingCell] = useState(null);   // "projId-dateStr"
   const [editingValue, setEditingValue] = useState('');
+
+  useEffect(() => {
+    api.get('/activities').then(r => setActivities(r.data.data)).catch(() => {});
+  }, []);
 
   const fetchWeek = useCallback(async () => {
     setLoading(true);
@@ -178,7 +182,7 @@ export default function Timesheet() {
           const hours = parseFloat(cell.hours);
           if (!hours || isNaN(hours)) continue;
 
-          const category = selectedCategory[`${p.project_id}-${dateStr}`] || cell?.category || 'Planning';
+          const category = selectedCategory[`${p.project_id}-${dateStr}`] || cell?.category || activities[0]?.name || 'Other';
           try {
             if (cell.id) {
               await api.put(`/entries/${cell.id}`, { hours, category });
@@ -303,21 +307,34 @@ export default function Timesheet() {
                           dt > 12 ? 'cell-danger' : dt > 8 ? 'cell-warn' : 'border-gray-100'
                         )}>
                           {isLocked ? (
-                            <div className="flex flex-col items-center gap-0.5">
+                            <div className="flex flex-col items-center gap-0.5 py-1">
                               <span className="font-medium text-gray-700">{formatHours(cell.hours)}</span>
+                              {cell.category && <span className="text-xs text-gray-400 truncate max-w-[80px]">{cell.category}</span>}
                               <StatusBadge status={cell.status} className="scale-75" />
                             </div>
                           ) : (
-                            <input
-                              type="text"
-                              className="text-center text-sm font-medium w-full bg-transparent border-0 outline-none py-2"
-                              value={editingCell === `${p.project_id}-${ds}` ? editingValue : formatHours(cell?.hours)}
-                              onFocus={() => handleCellFocus(p.project_id, ds)}
-                              onChange={e => handleCellChange(p.project_id, ds, e.target.value)}
-                              onBlur={() => handleCellBlur(p.project_id, ds)}
-                              placeholder="—"
-                              aria-label={`Time for ${p.project_name} on ${format(d, 'MMM d')}`}
-                            />
+                            <div className="flex flex-col gap-0.5">
+                              <input
+                                type="text"
+                                className="text-center text-sm font-medium w-full bg-transparent border-0 outline-none py-1.5"
+                                value={editingCell === `${p.project_id}-${ds}` ? editingValue : formatHours(cell?.hours)}
+                                onFocus={() => handleCellFocus(p.project_id, ds)}
+                                onChange={e => handleCellChange(p.project_id, ds, e.target.value)}
+                                onBlur={() => handleCellBlur(p.project_id, ds)}
+                                placeholder="—"
+                                aria-label={`Time for ${p.project_name} on ${format(d, 'MMM d')}`}
+                              />
+                              {cell?.hours > 0 && activities.length > 0 && (
+                                <select
+                                  className="text-xs text-gray-500 bg-transparent border-0 outline-none w-full text-center cursor-pointer hover:text-gray-700 pb-1"
+                                  value={selectedCategory[`${p.project_id}-${ds}`] || cell?.category || activities[0]?.name || ''}
+                                  onChange={e => setSelectedCategory(sc => ({ ...sc, [`${p.project_id}-${ds}`]: e.target.value }))}
+                                  aria-label="Activity"
+                                >
+                                  {activities.map(a => <option key={a.id} value={a.name}>{a.name}</option>)}
+                                </select>
+                              )}
+                            </div>
                           )}
                         </td>
                       );

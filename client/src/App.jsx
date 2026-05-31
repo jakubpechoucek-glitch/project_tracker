@@ -15,6 +15,7 @@ import UserDetail from './pages/admin/UserDetail';
 import Projects from './pages/admin/Projects';
 import ProjectDetail from './pages/admin/ProjectDetail';
 import Assignments from './pages/admin/Assignments';
+import Activities from './pages/admin/Activities';
 import AuditLog from './pages/admin/AuditLog';
 import ReportsLayout from './pages/admin/reports/ReportsLayout';
 import MonthlySummary from './pages/admin/reports/MonthlySummary';
@@ -76,6 +77,7 @@ export default function App() {
           <Route path="/admin/projects" element={<ProtectedRoute><AdminRoute><Projects /></AdminRoute></ProtectedRoute>} />
           <Route path="/admin/projects/:id" element={<ProtectedRoute><AdminRoute><ProjectDetail /></AdminRoute></ProtectedRoute>} />
           <Route path="/admin/assignments" element={<ProtectedRoute><AdminRoute><Assignments /></AdminRoute></ProtectedRoute>} />
+          <Route path="/admin/activities" element={<ProtectedRoute><AdminRoute><Activities /></AdminRoute></ProtectedRoute>} />
           <Route path="/admin/audit" element={<ProtectedRoute><AdminRoute><AuditLog /></AdminRoute></ProtectedRoute>} />
           <Route path="/admin/reports" element={<ProtectedRoute><AdminRoute><ReportsLayout /></AdminRoute></ProtectedRoute>}>
             <Route index element={<Navigate to="monthly" replace />} />

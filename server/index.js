@@ -40,6 +40,7 @@ app.use('/api/entries', require('./routes/entries.routes'));
 app.use('/api/reports', require('./routes/reports.routes'));
 app.use('/api/audit', require('./routes/audit.routes'));
 app.use('/api/suggestions', require('./routes/suggestions.routes'));
+app.use('/api/activities', require('./routes/activities.routes'));
 
 // Serve React in production
 if (!isDev) {
