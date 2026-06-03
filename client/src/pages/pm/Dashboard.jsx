@@ -8,8 +8,6 @@ import BudgetBar from '../../components/ui/BudgetBar';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { SkeletonCard } from '../../components/ui/LoadingSkeleton';
 import api from '../../services/api';
-import toast from 'react-hot-toast';
-
 const ACTIVITY_COLORS = ['#E30613', '#F97316', '#EAB308', '#22C55E', '#3B82F6', '#8B5CF6', '#EC4899'];
 
 const ClockIcon = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
@@ -51,38 +49,20 @@ export default function PMDashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [weekEntries, setWeekEntries] = useState([]);
-  const [summary, setSummary] = useState({ highlights: '', blockers: '' });
-  const [summaryDirty, setSummaryDirty] = useState(false);
-  const [savingSummary, setSavingSummary] = useState(false);
-
   useEffect(() => {
     setLoading(true);
     Promise.all([
       api.get(`/entries/dashboard/pm?weekStart=${weekStart}`),
       api.get(`/entries/week?week=${weekStart}`),
-      api.get(`/weekly-summaries?weekStart=${weekStart}`),
-    ]).then(([dash, week, sum]) => {
+    ]).then(([dash, week]) => {
       setData(dash.data.data);
       setWeekEntries(week.data.data.entries || []);
-      const s = sum.data.data;
-      setSummary({ highlights: s?.highlights || '', blockers: s?.blockers || '' });
-      setSummaryDirty(false);
     }).catch(console.error)
       .finally(() => setLoading(false));
   }, [weekStart]);
 
   function prevWeek() { setWeekStart(w => format(subDays(new Date(w + 'T00:00:00'), 7), 'yyyy-MM-dd')); }
   function nextWeek() { setWeekStart(w => format(addDays(new Date(w + 'T00:00:00'), 7), 'yyyy-MM-dd')); }
-
-  async function saveSummary() {
-    setSavingSummary(true);
-    try {
-      await api.put(`/weekly-summaries?weekStart=${weekStart}`, summary);
-      toast.success('Summary saved');
-      setSummaryDirty(false);
-    } catch { toast.error('Failed to save'); }
-    finally { setSavingSummary(false); }
-  }
 
   const weekStatus = () => {
     if (!weekEntries.length) return null;
@@ -145,32 +125,6 @@ export default function PMDashboard() {
             <p className="text-sm text-gray-600">{weekEntries.length} entr{weekEntries.length === 1 ? 'y' : 'ies'} logged this week.</p>
           )}
           {isCurrent && <Link to="/timesheet" className="btn-primary btn-sm mt-4 inline-flex">Go to Timesheet →</Link>}
-        </div>
-
-        {/* Weekly summary */}
-        <div className="card card-body space-y-4">
-          <div className="flex items-center justify-between">
-            <h2>Weekly summary</h2>
-            {summaryDirty && (
-              <button onClick={saveSummary} disabled={savingSummary}
-                className="btn-primary btn-sm">{savingSummary ? 'Saving…' : 'Save'}</button>
-            )}
-          </div>
-          <div>
-            <label className="label text-xs">✅ Highlights — what went well</label>
-            <textarea className="input resize-none w-full" rows={3}
-              placeholder="e.g. Finished onboarding docs, kicked off Project Beta meetings…"
-              value={summary.highlights}
-              onChange={e => { setSummary(s => ({ ...s, highlights: e.target.value })); setSummaryDirty(true); }} />
-          </div>
-          <div>
-            <label className="label text-xs">🚧 Blockers — what's in the way</label>
-            <textarea className="input resize-none w-full" rows={3}
-              placeholder="e.g. Waiting on client sign-off, missing data access for reporting…"
-              value={summary.blockers}
-              onChange={e => { setSummary(s => ({ ...s, blockers: e.target.value })); setSummaryDirty(true); }} />
-          </div>
-          {summaryDirty && <p className="text-xs text-gray-400">Unsaved changes</p>}
         </div>
 
         {/* Activity breakdown */}

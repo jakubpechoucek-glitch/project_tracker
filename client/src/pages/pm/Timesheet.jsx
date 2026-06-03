@@ -8,7 +8,6 @@ import clsx from 'clsx';
 import toast from 'react-hot-toast';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const CATEGORIES = ['Planning', 'Meetings', 'Reporting', 'Problem Solving', 'Documentation', 'Other'];
 
 /**
  * Parse a user-typed time string into decimal hours.
@@ -82,25 +81,29 @@ export default function Timesheet() {
   const [saving, setSaving] = useState(false);
   const [submitOpen, setSubmitOpen] = useState(false);
   const [warnings, setWarnings] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState({});
   const [editingCell, setEditingCell] = useState(null);   // "projId-dateStr"
   const [editingValue, setEditingValue] = useState('');
 
-  useEffect(() => {
-    // api.get('/activities').then(r => setActivities(r.data.data)).catch(() => {});
-  }, []);
+  // Weekly summary
+  const [summary, setSummary] = useState({ highlights: '', blockers: '' });
+  const [summaryDirty, setSummaryDirty] = useState(false);
+  const [savingSummary, setSavingSummary] = useState(false);
 
   const fetchWeek = useCallback(async () => {
     setLoading(true);
     try {
-      const [projectsRes, weekRes] = await Promise.all([
+      const [projectsRes, weekRes, sumRes] = await Promise.all([
         api.get('/assignments/my-projects'),
         api.get(`/entries/week?week=${weekStart}`),
+        api.get(`/weekly-summaries?weekStart=${weekStart}`),
       ]);
       const projs = projectsRes.data.data;
       const ents = weekRes.data.data.entries || [];
       setProjects(projs);
       setEntries(ents);
+      const s = sumRes.data.data;
+      setSummary({ highlights: s?.highlights || '', blockers: s?.blockers || '' });
+      setSummaryDirty(false);
 
       // Build grid: { projectId: { dateStr: entry } }
       const g = {};
@@ -184,7 +187,7 @@ export default function Timesheet() {
           const hours = parseFloat(cell.hours);
           if (!hours || isNaN(hours)) continue;
 
-          const category = selectedCategory[`${p.project_id}-${dateStr}`] || cell?.category || CATEGORIES[0];
+          const category = cell?.category || null;
           try {
             if (cell.id) {
               await api.put(`/entries/${cell.id}`, { hours, category });
@@ -234,6 +237,16 @@ export default function Timesheet() {
     } catch (err) {
       toast.error(err.response?.data?.error || 'Submit failed');
     }
+  }
+
+  async function saveSummary() {
+    setSavingSummary(true);
+    try {
+      await api.put(`/weekly-summaries?weekStart=${weekStart}`, summary);
+      toast.success('Summary saved');
+      setSummaryDirty(false);
+    } catch { toast.error('Failed to save summary'); }
+    finally { setSavingSummary(false); }
   }
 
   const hasDraftEntries = entries.some(e => e.status === 'draft');
@@ -315,28 +328,16 @@ export default function Timesheet() {
                               <StatusBadge status={cell.status} className="scale-75" />
                             </div>
                           ) : (
-                            <div className="flex flex-col gap-0.5">
-                              <input
-                                type="text"
-                                className="text-center text-sm font-medium w-full bg-transparent border-0 outline-none py-1.5"
-                                value={editingCell === `${p.project_id}-${ds}` ? editingValue : formatHours(cell?.hours)}
-                                onFocus={() => handleCellFocus(p.project_id, ds)}
-                                onChange={e => handleCellChange(p.project_id, ds, e.target.value)}
-                                onBlur={() => handleCellBlur(p.project_id, ds)}
-                                placeholder="—"
-                                aria-label={`Time for ${p.project_name} on ${format(d, 'MMM d')}`}
-                              />
-                              {cell?.hours > 0 && (
-                                <select
-                                  className="text-xs text-gray-500 bg-transparent border-0 outline-none w-full text-center cursor-pointer hover:text-gray-700 pb-1"
-                                  value={selectedCategory[`${p.project_id}-${ds}`] || cell?.category || CATEGORIES[0]}
-                                  onChange={e => setSelectedCategory(sc => ({ ...sc, [`${p.project_id}-${ds}`]: e.target.value }))}
-                                  aria-label="Activity"
-                                >
-                                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                                </select>
-                              )}
-                            </div>
+                            <input
+                              type="text"
+                              className="text-center text-sm font-medium w-full bg-transparent border-0 outline-none py-1.5"
+                              value={editingCell === `${p.project_id}-${ds}` ? editingValue : formatHours(cell?.hours)}
+                              onFocus={() => handleCellFocus(p.project_id, ds)}
+                              onChange={e => handleCellChange(p.project_id, ds, e.target.value)}
+                              onBlur={() => handleCellBlur(p.project_id, ds)}
+                              placeholder="—"
+                              aria-label={`Time for ${p.project_name} on ${format(d, 'MMM d')}`}
+                            />
                           )}
                         </td>
                       );
@@ -387,6 +388,37 @@ export default function Timesheet() {
           <span className="flex items-center gap-1"><span className="w-3 h-3 bg-green-50 border border-green-200 rounded" /> Approved</span>
           <span className="flex items-center gap-1"><span className="w-3 h-3 bg-blue-50 border border-blue-200 rounded" /> Pending</span>
           <span className="flex items-center gap-1"><span className="w-3 h-3 bg-red-50 border border-red-200 rounded" /> Rejected</span>
+        </div>
+
+        {/* Weekly summary */}
+        <div className="card card-body space-y-4">
+          <div className="flex items-center justify-between">
+            <h2>Weekly summary</h2>
+            {summaryDirty && (
+              <button onClick={saveSummary} disabled={savingSummary} className="btn-primary btn-sm">
+                {savingSummary ? 'Saving…' : 'Save'}
+              </button>
+            )}
+          </div>
+          <div>
+            <label className="label text-xs">✅ Highlights — what went well</label>
+            <textarea
+              className="input resize-none w-full" rows={3}
+              placeholder="e.g. Finished onboarding docs, kicked off Project Beta meetings…"
+              value={summary.highlights}
+              onChange={e => { setSummary(s => ({ ...s, highlights: e.target.value })); setSummaryDirty(true); }}
+            />
+          </div>
+          <div>
+            <label className="label text-xs">🚧 Blockers — what's in the way</label>
+            <textarea
+              className="input resize-none w-full" rows={3}
+              placeholder="e.g. Waiting on client sign-off, missing data access for reporting…"
+              value={summary.blockers}
+              onChange={e => { setSummary(s => ({ ...s, blockers: e.target.value })); setSummaryDirty(true); }}
+            />
+          </div>
+          {summaryDirty && <p className="text-xs text-gray-400">Unsaved changes</p>}
         </div>
       </div>
 
