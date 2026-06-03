@@ -137,38 +137,37 @@ function findPendingForPmWeek(pmId, weekStart, weekEnd) {
   `).all(pmId, weekStart, weekEnd);
 }
 
-function getWeeklySummary(pmId) {
+function getWeeklySummary(pmId, weekStart, weekEnd) {
   const db = getDb();
-  const thisWeek = db.prepare(`
-    SELECT COALESCE(SUM(hours), 0) as total FROM time_entries
-    WHERE pm_id = ? AND date >= date('now', 'weekday 1', '-7 days') AND date <= date('now', 'weekday 0')
-  `).get(pmId)?.total ?? 0;
+  // If no explicit dates supplied, fall back to current ISO week (Mon–Sun)
+  const from = weekStart || "date('now', 'weekday 1', '-7 days')";
+  const to   = weekEnd   || "date('now', 'weekday 0')";
+  const useParams = !!(weekStart && weekEnd);
 
-  const thisMonth = db.prepare(`
-    SELECT COALESCE(SUM(hours), 0) as total FROM time_entries
-    WHERE pm_id = ? AND strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
-  `).get(pmId)?.total ?? 0;
+  const thisWeek = useParams
+    ? db.prepare(`SELECT COALESCE(SUM(hours),0) as total FROM time_entries WHERE pm_id=? AND date>=? AND date<=?`).get(pmId, weekStart, weekEnd)?.total ?? 0
+    : db.prepare(`SELECT COALESCE(SUM(hours),0) as total FROM time_entries WHERE pm_id=? AND date>=date('now','weekday 1','-7 days') AND date<=date('now','weekday 0')`).get(pmId)?.total ?? 0;
+
+  const thisMonth = useParams
+    ? db.prepare(`SELECT COALESCE(SUM(hours),0) as total FROM time_entries WHERE pm_id=? AND strftime('%Y-%m',date)=strftime('%Y-%m',?)`).get(pmId, weekStart)?.total ?? 0
+    : db.prepare(`SELECT COALESCE(SUM(hours),0) as total FROM time_entries WHERE pm_id=? AND strftime('%Y-%m',date)=strftime('%Y-%m','now')`).get(pmId)?.total ?? 0;
 
   return { thisWeek, thisMonth };
 }
 
-function getAdminWeeklySummary() {
+function getAdminWeeklySummary(weekStart, weekEnd) {
   const db = getDb();
-  const thisWeek = db.prepare(`
-    SELECT COALESCE(SUM(hours), 0) as total FROM time_entries
-    WHERE date >= date('now', 'weekday 1', '-7 days') AND date <= date('now', 'weekday 0')
-    AND status IN ('pending','approved')
-  `).get()?.total ?? 0;
+  const useParams = !!(weekStart && weekEnd);
 
-  const thisMonth = db.prepare(`
-    SELECT COALESCE(SUM(hours), 0) as total FROM time_entries
-    WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
-    AND status IN ('pending','approved')
-  `).get()?.total ?? 0;
+  const thisWeek = useParams
+    ? db.prepare(`SELECT COALESCE(SUM(hours),0) as total FROM time_entries WHERE date>=? AND date<=? AND status IN ('pending','approved')`).get(weekStart, weekEnd)?.total ?? 0
+    : db.prepare(`SELECT COALESCE(SUM(hours),0) as total FROM time_entries WHERE date>=date('now','weekday 1','-7 days') AND date<=date('now','weekday 0') AND status IN ('pending','approved')`).get()?.total ?? 0;
 
-  const pendingCount = db.prepare(
-    'SELECT COUNT(*) as c FROM time_entries WHERE status = \'pending\''
-  ).get()?.c ?? 0;
+  const thisMonth = useParams
+    ? db.prepare(`SELECT COALESCE(SUM(hours),0) as total FROM time_entries WHERE strftime('%Y-%m',date)=strftime('%Y-%m',?) AND status IN ('pending','approved')`).get(weekStart)?.total ?? 0
+    : db.prepare(`SELECT COALESCE(SUM(hours),0) as total FROM time_entries WHERE strftime('%Y-%m',date)=strftime('%Y-%m','now') AND status IN ('pending','approved')`).get()?.total ?? 0;
+
+  const pendingCount = db.prepare(`SELECT COUNT(*) as c FROM time_entries WHERE status='pending'`).get()?.c ?? 0;
 
   return { thisWeek, thisMonth, pendingCount };
 }

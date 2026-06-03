@@ -8,6 +8,7 @@ import clsx from 'clsx';
 import toast from 'react-hot-toast';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const CATEGORIES = ['Planning', 'Meetings', 'Reporting', 'Problem Solving', 'Documentation', 'Other'];
 
 /**
  * Parse a user-typed time string into decimal hours.
@@ -73,7 +74,8 @@ export default function Timesheet() {
   const weekEnd = format(weekDates[6], 'yyyy-MM-dd');
 
   const [projects, setProjects] = useState([]);
-  const [activities, setActivities] = useState([]);
+  // activities state kept for future use (dynamic activities feature)
+  // const [activities, setActivities] = useState([]);
   const [entries, setEntries] = useState([]);
   const [grid, setGrid] = useState({});
   const [loading, setLoading] = useState(true);
@@ -85,7 +87,7 @@ export default function Timesheet() {
   const [editingValue, setEditingValue] = useState('');
 
   useEffect(() => {
-    api.get('/activities').then(r => setActivities(r.data.data)).catch(() => {});
+    // api.get('/activities').then(r => setActivities(r.data.data)).catch(() => {});
   }, []);
 
   const fetchWeek = useCallback(async () => {
@@ -182,7 +184,7 @@ export default function Timesheet() {
           const hours = parseFloat(cell.hours);
           if (!hours || isNaN(hours)) continue;
 
-          const category = selectedCategory[`${p.project_id}-${dateStr}`] || cell?.category || activities[0]?.name || 'Other';
+          const category = selectedCategory[`${p.project_id}-${dateStr}`] || cell?.category || CATEGORIES[0];
           try {
             if (cell.id) {
               await api.put(`/entries/${cell.id}`, { hours, category });
@@ -324,14 +326,14 @@ export default function Timesheet() {
                                 placeholder="—"
                                 aria-label={`Time for ${p.project_name} on ${format(d, 'MMM d')}`}
                               />
-                              {cell?.hours > 0 && activities.length > 0 && (
+                              {cell?.hours > 0 && (
                                 <select
                                   className="text-xs text-gray-500 bg-transparent border-0 outline-none w-full text-center cursor-pointer hover:text-gray-700 pb-1"
-                                  value={selectedCategory[`${p.project_id}-${ds}`] || cell?.category || activities[0]?.name || ''}
+                                  value={selectedCategory[`${p.project_id}-${ds}`] || cell?.category || CATEGORIES[0]}
                                   onChange={e => setSelectedCategory(sc => ({ ...sc, [`${p.project_id}-${ds}`]: e.target.value }))}
                                   aria-label="Activity"
                                 >
-                                  {activities.map(a => <option key={a.id} value={a.name}>{a.name}</option>)}
+                                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                                 </select>
                               )}
                             </div>

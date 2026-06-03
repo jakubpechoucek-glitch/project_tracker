@@ -197,30 +197,34 @@ function getPendingApprovals() {
   return entriesRepo.findPendingGroupedByPmWeek();
 }
 
-function getAdminDashboard() {
-  const summary = entriesRepo.getAdminWeeklySummary();
+function getAdminDashboard(weekStartParam) {
   const now = new Date();
   const y = now.getFullYear();
   const m = String(now.getMonth() + 1).padStart(2, '0');
   const month = `${y}-${m}`;
   const monthStart = `${y}-${m}-01`;
   const monthEnd = new Date(y, now.getMonth() + 1, 0).toISOString().slice(0, 10);
+
+  // If a weekStart was provided, derive weekEnd from it; else use current week
+  const weekStart = weekStartParam ? weekStartOf(weekStartParam) : weekStartOf(today());
+  const weekEnd   = weekEndOf(weekStart);
+
+  const summary = entriesRepo.getAdminWeeklySummary(weekStart, weekEnd);
   const hoursPerProject = entriesRepo.getHoursPerProject(month);
   const activeAssignments = assignmentsRepo.findActive();
   const activityBreakdown = entriesRepo.getActivityBreakdownAdmin(monthStart, monthEnd);
   const activityByProject = entriesRepo.getActivityByProjectAdmin(monthStart, monthEnd);
-  return { summary, hoursPerProject, activeAssignments, activityBreakdown, activityByProject };
+  return { summary, hoursPerProject, activeAssignments, activityBreakdown, activityByProject, weekStart, weekEnd };
 }
 
-function getPmDashboard(pmId) {
-  const summary = entriesRepo.getWeeklySummary(pmId);
+function getPmDashboard(pmId, weekStartParam) {
+  const weekStart = weekStartParam ? weekStartOf(weekStartParam) : weekStartOf(today());
+  const weekEnd   = weekEndOf(weekStart);
+  const summary = entriesRepo.getWeeklySummary(pmId, weekStart, weekEnd);
   const activeProjects = assignmentsRepo.findActivePmProjects(pmId);
-  // This week Mon–Sun
-  const weekStart = weekStartOf(today());
-  const weekEnd   = weekEndOf(today());
   const activityBreakdown = entriesRepo.getActivityBreakdownPm(pmId, weekStart, weekEnd);
   const activityByProject = entriesRepo.getActivityByProjectPm(pmId, weekStart, weekEnd);
-  return { summary, activeProjects, activityBreakdown, activityByProject };
+  return { summary, activeProjects, activityBreakdown, activityByProject, weekStart, weekEnd };
 }
 
 const { findActive: findActiveAssignments } = require('../repositories/assignments.repository');

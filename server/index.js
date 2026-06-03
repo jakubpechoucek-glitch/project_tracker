@@ -41,6 +41,8 @@ app.use('/api/reports', require('./routes/reports.routes'));
 app.use('/api/audit', require('./routes/audit.routes'));
 app.use('/api/suggestions', require('./routes/suggestions.routes'));
 app.use('/api/activities', require('./routes/activities.routes'));
+app.use('/api/chat', require('./routes/chat.routes'));
+app.use('/api/weekly-summaries', require('./routes/weekly-summaries.routes'));
 
 // Serve React in production
 if (!isDev) {

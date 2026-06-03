@@ -1,17 +1,30 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { format, addDays, subDays, startOfISOWeek, isAfter, startOfDay } from 'date-fns';
 import AppLayout from '../../components/layout/AppLayout';
 import SummaryCard from '../../components/ui/SummaryCard';
 import BudgetBar from '../../components/ui/BudgetBar';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { SkeletonCard } from '../../components/ui/LoadingSkeleton';
 import api from '../../services/api';
+import toast from 'react-hot-toast';
 
 const ACTIVITY_COLORS = ['#E30613', '#F97316', '#EAB308', '#22C55E', '#3B82F6', '#8B5CF6', '#EC4899'];
 
-function ActivityMiniBar({ activities, total }) {
-  if (!activities?.length) return <p className="text-xs text-gray-400">No activity data</p>;
+const ClockIcon = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
+const CalIcon  = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
+
+function weekLabel(monday) {
+  const sunday = addDays(monday, 6);
+  if (format(monday, 'MMM') === format(sunday, 'MMM')) {
+    return `${format(monday, 'MMM d')} – ${format(sunday, 'd, yyyy')}`;
+  }
+  return `${format(monday, 'MMM d')} – ${format(sunday, 'MMM d, yyyy')}`;
+}
+
+function ActivityMiniBar({ activities }) {
+  if (!activities?.length) return <p className="text-xs text-gray-400">No activity data this week</p>;
   return (
     <div className="space-y-1 mt-2">
       {activities.map((a, i) => (
@@ -28,23 +41,50 @@ function ActivityMiniBar({ activities, total }) {
   );
 }
 
-const ClockIcon = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
-const CalIcon = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
-
 export default function PMDashboard() {
+  const today = startOfISOWeek(new Date());
+  const [selectedMonday, setSelectedMonday] = useState(today);
+  const isCurrentWeek = !isAfter(startOfDay(addDays(selectedMonday, 1)), startOfDay(addDays(today, 1)));
+  // actually: is the selected week the current week?
+  const isCurrent = format(selectedMonday, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
+
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [weekEntries, setWeekEntries] = useState([]);
 
-  useEffect(() => {
+  // Weekly summary state
+  const [summary, setSummary] = useState({ highlights: '', blockers: '' });
+  const [summaryDirty, setSummaryDirty] = useState(false);
+  const [savingSummary, setSavingSummary] = useState(false);
+
+  const weekStartStr = format(selectedMonday, 'yyyy-MM-dd');
+
+  const load = useCallback(() => {
+    setLoading(true);
     Promise.all([
-      api.get('/entries/dashboard/pm'),
-      api.get('/entries/week'),
-    ]).then(([dash, week]) => {
+      api.get(`/entries/dashboard/pm?weekStart=${weekStartStr}`),
+      isCurrent ? api.get('/entries/week') : api.get(`/entries/week?week=${weekStartStr}`),
+      api.get(`/weekly-summaries?weekStart=${weekStartStr}`),
+    ]).then(([dash, week, sum]) => {
       setData(dash.data.data);
       setWeekEntries(week.data.data.entries || []);
+      const s = sum.data.data;
+      setSummary({ highlights: s.highlights || '', blockers: s.blockers || '' });
+      setSummaryDirty(false);
     }).finally(() => setLoading(false));
-  }, []);
+  }, [weekStartStr, isCurrent]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function saveSummary() {
+    setSavingSummary(true);
+    try {
+      await api.put(`/weekly-summaries?weekStart=${weekStartStr}`, summary);
+      toast.success('Summary saved');
+      setSummaryDirty(false);
+    } catch { toast.error('Failed to save'); }
+    finally { setSavingSummary(false); }
+  }
 
   const weekStatus = () => {
     if (!weekEntries.length) return null;
@@ -58,6 +98,22 @@ export default function PMDashboard() {
   return (
     <AppLayout title="My Dashboard">
       <div className="space-y-6">
+
+        {/* Week picker */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setSelectedMonday(m => subDays(m, 7))}
+              className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 text-gray-600">‹</button>
+            <span className="text-sm font-medium text-gray-700 min-w-52 text-center">{weekLabel(selectedMonday)}</span>
+            <button onClick={() => setSelectedMonday(m => addDays(m, 7))}
+              disabled={isCurrent}
+              className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed">›</button>
+          </div>
+          {!isCurrent && (
+            <button onClick={() => setSelectedMonday(today)} className="text-xs text-primary hover:underline">Back to current week</button>
+          )}
+        </div>
+
         {/* Summary cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {loading ? (
@@ -70,7 +126,7 @@ export default function PMDashboard() {
           )}
         </div>
 
-        {/* Week status */}
+        {/* Week status + timesheet link */}
         <div className="card card-body">
           <div className="flex items-center justify-between mb-4">
             <h2>This week's timesheet</h2>
@@ -81,10 +137,42 @@ export default function PMDashboard() {
           ) : (
             <p className="text-sm text-gray-600">{weekEntries.length} entr{weekEntries.length === 1 ? 'y' : 'ies'} logged this week.</p>
           )}
-          <Link to="/timesheet" className="btn-primary btn-sm mt-4 inline-flex">Go to Timesheet →</Link>
+          {isCurrent && <Link to="/timesheet" className="btn-primary btn-sm mt-4 inline-flex">Go to Timesheet →</Link>}
         </div>
 
-        {/* Activity breakdown this week */}
+        {/* Weekly summary */}
+        <div className="card card-body space-y-4">
+          <div className="flex items-center justify-between">
+            <h2>Weekly summary</h2>
+            {summaryDirty && (
+              <button onClick={saveSummary} disabled={savingSummary}
+                className="btn-primary btn-sm">{savingSummary ? 'Saving…' : 'Save'}</button>
+            )}
+          </div>
+          <div>
+            <label className="label text-xs">✅ Highlights — what went well</label>
+            <textarea
+              className="input resize-none w-full"
+              rows={3}
+              placeholder="e.g. Finished onboarding docs, kicked off Project Beta meetings…"
+              value={summary.highlights}
+              onChange={e => { setSummary(s => ({ ...s, highlights: e.target.value })); setSummaryDirty(true); }}
+            />
+          </div>
+          <div>
+            <label className="label text-xs">🚧 Blockers — what's in the way</label>
+            <textarea
+              className="input resize-none w-full"
+              rows={3}
+              placeholder="e.g. Waiting on client sign-off, missing data access for reporting…"
+              value={summary.blockers}
+              onChange={e => { setSummary(s => ({ ...s, blockers: e.target.value })); setSummaryDirty(true); }}
+            />
+          </div>
+          {summaryDirty && <p className="text-xs text-gray-400">Unsaved changes</p>}
+        </div>
+
+        {/* Activity breakdown */}
         <div className="card card-body">
           <h2 className="mb-4">Hours by activity (this week)</h2>
           {loading ? <div className="h-40 bg-gray-100 rounded animate-pulse" /> : (
@@ -107,7 +195,7 @@ export default function PMDashboard() {
           )}
         </div>
 
-        {/* Active projects with activity breakdown */}
+        {/* Active projects with per-project activity breakdown */}
         <div className="card">
           <div className="card-body border-b border-gray-100 flex items-center justify-between">
             <h2>My active projects</h2>
@@ -135,7 +223,7 @@ export default function PMDashboard() {
                           <span className="hidden group-open:inline">▾</span>
                           Activity breakdown this week
                         </summary>
-                        <ActivityMiniBar activities={projectBreakdown.activities} total={projectBreakdown.total_hours} />
+                        <ActivityMiniBar activities={projectBreakdown.activities} />
                       </details>
                     )}
                   </div>
@@ -144,6 +232,7 @@ export default function PMDashboard() {
             </div>
           )}
         </div>
+
       </div>
     </AppLayout>
   );

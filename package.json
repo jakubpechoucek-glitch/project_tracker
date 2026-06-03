@@ -15,6 +15,7 @@
     "test": "jest --testPathPattern=tests/ --forceExit --runInBand"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.100.1",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^12.10.0",
     "concurrently": "^8.2.2",

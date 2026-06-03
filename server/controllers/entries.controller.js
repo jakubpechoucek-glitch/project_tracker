@@ -101,13 +101,13 @@ async function pending(req, res) {
 
 async function adminDashboard(req, res) {
   try {
-    success(res, entriesService.getAdminDashboard());
+    success(res, entriesService.getAdminDashboard(req.query.weekStart));
   } catch (err) { error(res, err.message, err.status || 500); }
 }
 
 async function pmDashboard(req, res) {
   try {
-    success(res, entriesService.getPmDashboard(req.user.id));
+    success(res, entriesService.getPmDashboard(req.user.id, req.query.weekStart));
   } catch (err) { error(res, err.message, err.status || 500); }
 }
 
