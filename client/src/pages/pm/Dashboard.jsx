@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { format, addDays, subDays, startOfISOWeek, isAfter, startOfDay } from 'date-fns';
+import { format, addDays, subDays, startOfISOWeek } from 'date-fns';
 import AppLayout from '../../components/layout/AppLayout';
 import SummaryCard from '../../components/ui/SummaryCard';
 import BudgetBar from '../../components/ui/BudgetBar';
@@ -13,7 +13,9 @@ import toast from 'react-hot-toast';
 const ACTIVITY_COLORS = ['#E30613', '#F97316', '#EAB308', '#22C55E', '#3B82F6', '#8B5CF6', '#EC4899'];
 
 const ClockIcon = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
-const CalIcon  = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
+const CalIcon   = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
+const ChevronL  = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>;
+const ChevronR  = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>;
 
 function weekLabel(monday) {
   const sunday = addDays(monday, 6);
@@ -42,44 +44,40 @@ function ActivityMiniBar({ activities }) {
 }
 
 export default function PMDashboard() {
-  const today = startOfISOWeek(new Date());
-  const [selectedMonday, setSelectedMonday] = useState(today);
-  const isCurrentWeek = !isAfter(startOfDay(addDays(selectedMonday, 1)), startOfDay(addDays(today, 1)));
-  // actually: is the selected week the current week?
-  const isCurrent = format(selectedMonday, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
+  const currentMonday = format(startOfISOWeek(new Date()), 'yyyy-MM-dd');
+  const [weekStart, setWeekStart] = useState(currentMonday);
+  const isCurrent = weekStart === currentMonday;
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [weekEntries, setWeekEntries] = useState([]);
-
-  // Weekly summary state
   const [summary, setSummary] = useState({ highlights: '', blockers: '' });
   const [summaryDirty, setSummaryDirty] = useState(false);
   const [savingSummary, setSavingSummary] = useState(false);
 
-  const weekStartStr = format(selectedMonday, 'yyyy-MM-dd');
-
-  const load = useCallback(() => {
+  useEffect(() => {
     setLoading(true);
     Promise.all([
-      api.get(`/entries/dashboard/pm?weekStart=${weekStartStr}`),
-      isCurrent ? api.get('/entries/week') : api.get(`/entries/week?week=${weekStartStr}`),
-      api.get(`/weekly-summaries?weekStart=${weekStartStr}`),
+      api.get(`/entries/dashboard/pm?weekStart=${weekStart}`),
+      api.get(`/entries/week?week=${weekStart}`),
+      api.get(`/weekly-summaries?weekStart=${weekStart}`),
     ]).then(([dash, week, sum]) => {
       setData(dash.data.data);
       setWeekEntries(week.data.data.entries || []);
       const s = sum.data.data;
-      setSummary({ highlights: s.highlights || '', blockers: s.blockers || '' });
+      setSummary({ highlights: s?.highlights || '', blockers: s?.blockers || '' });
       setSummaryDirty(false);
-    }).finally(() => setLoading(false));
-  }, [weekStartStr, isCurrent]);
+    }).catch(console.error)
+      .finally(() => setLoading(false));
+  }, [weekStart]);
 
-  useEffect(() => { load(); }, [load]);
+  function prevWeek() { setWeekStart(w => format(subDays(new Date(w + 'T00:00:00'), 7), 'yyyy-MM-dd')); }
+  function nextWeek() { setWeekStart(w => format(addDays(new Date(w + 'T00:00:00'), 7), 'yyyy-MM-dd')); }
 
   async function saveSummary() {
     setSavingSummary(true);
     try {
-      await api.put(`/weekly-summaries?weekStart=${weekStartStr}`, summary);
+      await api.put(`/weekly-summaries?weekStart=${weekStart}`, summary);
       toast.success('Summary saved');
       setSummaryDirty(false);
     } catch { toast.error('Failed to save'); }
@@ -100,17 +98,26 @@ export default function PMDashboard() {
       <div className="space-y-6">
 
         {/* Week picker */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setSelectedMonday(m => subDays(m, 7))}
-              className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 text-gray-600">‹</button>
-            <span className="text-sm font-medium text-gray-700 min-w-52 text-center">{weekLabel(selectedMonday)}</span>
-            <button onClick={() => setSelectedMonday(m => addDays(m, 7))}
-              disabled={isCurrent}
-              className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed">›</button>
+        <div className="card card-body py-3">
+          <div className="flex items-center justify-between">
+            <button onClick={prevWeek}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600 text-sm font-medium transition-colors">
+              <ChevronL /> Previous week
+            </button>
+            <div className="text-center">
+              <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Week</p>
+              <p className="text-sm font-semibold text-gray-800">{weekLabel(new Date(weekStart + 'T00:00:00'))}</p>
+            </div>
+            <button onClick={nextWeek} disabled={isCurrent}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600 text-sm font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+              Next week <ChevronR />
+            </button>
           </div>
           {!isCurrent && (
-            <button onClick={() => setSelectedMonday(today)} className="text-xs text-primary hover:underline">Back to current week</button>
+            <div className="text-center mt-2">
+              <button onClick={() => setWeekStart(currentMonday)}
+                className="text-xs text-primary hover:underline">↩ Back to current week</button>
+            </div>
           )}
         </div>
 
@@ -151,23 +158,17 @@ export default function PMDashboard() {
           </div>
           <div>
             <label className="label text-xs">✅ Highlights — what went well</label>
-            <textarea
-              className="input resize-none w-full"
-              rows={3}
+            <textarea className="input resize-none w-full" rows={3}
               placeholder="e.g. Finished onboarding docs, kicked off Project Beta meetings…"
               value={summary.highlights}
-              onChange={e => { setSummary(s => ({ ...s, highlights: e.target.value })); setSummaryDirty(true); }}
-            />
+              onChange={e => { setSummary(s => ({ ...s, highlights: e.target.value })); setSummaryDirty(true); }} />
           </div>
           <div>
             <label className="label text-xs">🚧 Blockers — what's in the way</label>
-            <textarea
-              className="input resize-none w-full"
-              rows={3}
+            <textarea className="input resize-none w-full" rows={3}
               placeholder="e.g. Waiting on client sign-off, missing data access for reporting…"
               value={summary.blockers}
-              onChange={e => { setSummary(s => ({ ...s, blockers: e.target.value })); setSummaryDirty(true); }}
-            />
+              onChange={e => { setSummary(s => ({ ...s, blockers: e.target.value })); setSummaryDirty(true); }} />
           </div>
           {summaryDirty && <p className="text-xs text-gray-400">Unsaved changes</p>}
         </div>
@@ -197,7 +198,7 @@ export default function PMDashboard() {
 
         {/* Active projects with per-project activity breakdown */}
         <div className="card">
-          <div className="card-body border-b border-gray-100 flex items-center justify-between">
+          <div className="card-body border-b border-gray-100">
             <h2>My active projects</h2>
           </div>
           {loading ? (

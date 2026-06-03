@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend } from 'recharts';
-import { format, addDays, subDays, startOfISOWeek, isAfter, startOfDay } from 'date-fns';
+import { format, addDays, subDays, startOfISOWeek } from 'date-fns';
 import AppLayout from '../../components/layout/AppLayout';
 import SummaryCard from '../../components/ui/SummaryCard';
 import BudgetBar from '../../components/ui/BudgetBar';
@@ -23,7 +23,8 @@ function toStackedData(byProject) {
   return { chartData, allActs };
 }
 
-function weekLabel(monday) {
+function weekLabel(weekStart) {
+  const monday = new Date(weekStart + 'T00:00:00');
   const sunday = addDays(monday, 6);
   if (format(monday, 'MMM') === format(sunday, 'MMM')) {
     return `${format(monday, 'MMM d')} – ${format(sunday, 'd, yyyy')}`;
@@ -35,33 +36,35 @@ const ClockIcon  = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24
 const CalIcon    = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
 const CheckIcon  = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
 const AlertIcon  = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>;
+const ChevronL   = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>;
+const ChevronR   = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>;
 
 export default function AdminDashboard() {
-  const today = startOfISOWeek(new Date());
-  const [selectedMonday, setSelectedMonday] = useState(today);
-  const isCurrent = format(selectedMonday, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
+  const currentMonday = format(startOfISOWeek(new Date()), 'yyyy-MM-dd');
+  const [weekStart, setWeekStart] = useState(currentMonday);
+  const isCurrent = weekStart === currentMonday;
 
   const [data, setData] = useState(null);
   const [budget, setBudget] = useState([]);
   const [pmSummaries, setPmSummaries] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const weekStartStr = format(selectedMonday, 'yyyy-MM-dd');
-
-  const load = useCallback(() => {
+  useEffect(() => {
     setLoading(true);
     Promise.all([
-      api.get(`/entries/dashboard/admin?weekStart=${weekStartStr}`),
+      api.get(`/entries/dashboard/admin?weekStart=${weekStart}`),
       api.get('/reports/budget'),
-      api.get(`/weekly-summaries?weekStart=${weekStartStr}`),
+      api.get(`/weekly-summaries?weekStart=${weekStart}`),
     ]).then(([dash, bud, sums]) => {
       setData(dash.data.data);
       setBudget(bud.data.data.filter(p => p.status === 'active'));
-      setPmSummaries(sums.data.data);
-    }).finally(() => setLoading(false));
-  }, [weekStartStr]);
+      setPmSummaries(Array.isArray(sums.data.data) ? sums.data.data : []);
+    }).catch(console.error)
+      .finally(() => setLoading(false));
+  }, [weekStart]);
 
-  useEffect(() => { load(); }, [load]);
+  function prevWeek() { setWeekStart(w => format(subDays(new Date(w + 'T00:00:00'), 7), 'yyyy-MM-dd')); }
+  function nextWeek() { setWeekStart(w => format(addDays(new Date(w + 'T00:00:00'), 7), 'yyyy-MM-dd')); }
 
   const overBudget = budget.filter(p => p.pct_consumed >= 100).length;
   const { chartData, allActs } = toStackedData(data?.activityByProject);
@@ -71,17 +74,26 @@ export default function AdminDashboard() {
       <div className="space-y-6">
 
         {/* Week picker */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setSelectedMonday(m => subDays(m, 7))}
-              className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 text-gray-600">‹</button>
-            <span className="text-sm font-medium text-gray-700 min-w-52 text-center">{weekLabel(selectedMonday)}</span>
-            <button onClick={() => setSelectedMonday(m => addDays(m, 7))}
-              disabled={isCurrent}
-              className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed">›</button>
+        <div className="card card-body py-3">
+          <div className="flex items-center justify-between">
+            <button onClick={prevWeek}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600 text-sm font-medium transition-colors">
+              <ChevronL /> Previous week
+            </button>
+            <div className="text-center">
+              <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Week</p>
+              <p className="text-sm font-semibold text-gray-800">{weekLabel(weekStart)}</p>
+            </div>
+            <button onClick={nextWeek} disabled={isCurrent}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600 text-sm font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+              Next week <ChevronR />
+            </button>
           </div>
           {!isCurrent && (
-            <button onClick={() => setSelectedMonday(today)} className="text-xs text-primary hover:underline">Back to current week</button>
+            <div className="text-center mt-2">
+              <button onClick={() => setWeekStart(currentMonday)}
+                className="text-xs text-primary hover:underline">↩ Back to current week</button>
+            </div>
           )}
         </div>
 
@@ -103,7 +115,7 @@ export default function AdminDashboard() {
         {/* PM Weekly Summaries */}
         <div className="card">
           <div className="card-body border-b border-gray-100">
-            <h2>PM weekly summaries — {weekLabel(selectedMonday)}</h2>
+            <h2>PM weekly summaries — {weekLabel(weekStart)}</h2>
           </div>
           {loading ? <div className="p-6"><SkeletonCard /></div> : (
             pmSummaries.length === 0 ? (
@@ -136,20 +148,20 @@ export default function AdminDashboard() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Hours per project bar chart */}
+          {/* Hours per project */}
           <div className="card card-body">
             <h2 className="mb-4">Hours by project (this month)</h2>
             {loading ? <div className="h-48 bg-gray-100 rounded animate-pulse" /> : (
-              data?.hoursPerProject?.length === 0 ? (
+              !data?.hoursPerProject?.length ? (
                 <p className="text-sm text-gray-400 py-8 text-center">No hours logged this month.</p>
               ) : (
                 <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={data?.hoursPerProject} margin={{ top: 5, right: 5, bottom: 30, left: 0 }}>
+                  <BarChart data={data.hoursPerProject} margin={{ top: 5, right: 5, bottom: 30, left: 0 }}>
                     <XAxis dataKey="project_name" tick={{ fontSize: 11 }} angle={-25} textAnchor="end" interval={0} />
                     <YAxis tick={{ fontSize: 11 }} />
                     <Tooltip formatter={(v) => [`${v}h`, 'Hours']} />
                     <Bar dataKey="total_hours" radius={[4, 4, 0, 0]}>
-                      {data?.hoursPerProject?.map((_, i) => (
+                      {data.hoursPerProject.map((_, i) => (
                         <Cell key={i} fill="#E30613" fillOpacity={0.8 - i * 0.08} />
                       ))}
                     </Bar>
@@ -161,9 +173,7 @@ export default function AdminDashboard() {
 
           {/* Budget consumption */}
           <div className="card">
-            <div className="card-body border-b border-gray-100">
-              <h2>Budget consumption</h2>
-            </div>
+            <div className="card-body border-b border-gray-100"><h2>Budget consumption</h2></div>
             {loading ? <div className="p-6 space-y-4">{[1,2,3].map(i => <SkeletonCard key={i} />)}</div> : (
               <div className="divide-y divide-gray-100">
                 {budget.length === 0 ? (
@@ -183,7 +193,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Activity breakdown by project (this month) */}
+        {/* Activity breakdown by project */}
         <div className="card card-body">
           <h2 className="mb-4">Activity breakdown by project (this month)</h2>
           {loading ? <div className="h-48 bg-gray-100 rounded animate-pulse" /> : (
@@ -197,7 +207,8 @@ export default function AdminDashboard() {
                   <Tooltip formatter={(v, name) => [`${v}h`, name]} labelFormatter={(label, payload) => payload?.[0]?.payload?._full || label} />
                   <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
                   {allActs.map((act, i) => (
-                    <Bar key={act} dataKey={act} stackId="a" fill={ACT_COLORS[i % ACT_COLORS.length]} radius={i === allActs.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]} />
+                    <Bar key={act} dataKey={act} stackId="a" fill={ACT_COLORS[i % ACT_COLORS.length]}
+                      radius={i === allActs.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]} />
                   ))}
                 </BarChart>
               </ResponsiveContainer>
@@ -207,16 +218,14 @@ export default function AdminDashboard() {
 
         {/* Active assignments */}
         <div className="card">
-          <div className="card-body border-b border-gray-100">
-            <h2>Active assignments</h2>
-          </div>
+          <div className="card-body border-b border-gray-100"><h2>Active assignments</h2></div>
           {loading ? <div className="p-6"><SkeletonCard /></div> : (
             <table className="table-base">
               <thead><tr><th>PM</th><th>Project</th><th>Since</th></tr></thead>
               <tbody>
-                {data?.activeAssignments?.length === 0 ? (
+                {!data?.activeAssignments?.length ? (
                   <tr><td colSpan={3} className="py-6 text-center text-gray-400 text-sm">No active assignments</td></tr>
-                ) : data?.activeAssignments?.map(a => (
+                ) : data.activeAssignments.map(a => (
                   <tr key={a.id}>
                     <td className="font-medium">{a.pm_name}</td>
                     <td>{a.project_name}</td>
