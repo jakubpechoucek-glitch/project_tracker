@@ -18,5 +18,6 @@ router.post('/:id/reject', requireAdmin, ctrl.reject);
 router.post('/:id/reopen', requireAdmin, ctrl.reopen);
 router.post('/approve-week', requireAdmin, ctrl.approveWeek);
 router.post('/reject-week', requireAdmin, ctrl.rejectWeek);
+router.post('/reopen-week', requireAdmin, ctrl.reopenWeek);
 
 module.exports = router;

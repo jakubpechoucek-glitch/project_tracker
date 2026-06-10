@@ -19,6 +19,7 @@ export default function Approvals() {
   const [rejectReason, setRejectReason] = useState('');
   const [weekRejectDialog, setWeekRejectDialog] = useState(null);
   const [weekRejectReason, setWeekRejectReason] = useState('');
+  const [reopenDialog, setReopenDialog] = useState(null); // { pmId, pmName, weekStart }
 
   async function load() {
     setLoading(true);
@@ -73,6 +74,16 @@ export default function Approvals() {
     } catch (err) { toast.error(err.response?.data?.error || 'Failed'); }
   }
 
+  async function handleReopenWeek() {
+    try {
+      const { pmId, pmName, weekStart } = reopenDialog;
+      await api.post('/entries/reopen-week', { pmId, week: weekStart });
+      toast.success(`Week reopened — ${pmName} can now edit their timesheet`);
+      setReopenDialog(null);
+      load();
+    } catch (err) { toast.error(err.response?.data?.error || 'Failed'); }
+  }
+
   async function handleRejectWeek() {
     try {
       await api.post('/entries/reject-week', { pmId: weekRejectDialog.pmId, week: weekRejectDialog.weekStart, reason: weekRejectReason });
@@ -107,7 +118,11 @@ export default function Approvals() {
                     <span className="text-sm font-semibold text-gray-700">
                       Week of {format(new Date(weekStart + 'T00:00:00'), 'MMM d')} — {format(addDays(new Date(weekStart + 'T00:00:00'), 6), 'MMM d, yyyy')}
                     </span>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
+                      <button className="btn btn-ghost btn-sm text-amber-600 border border-amber-200 hover:bg-amber-50"
+                        onClick={() => setReopenDialog({ pmId: pm.pm_id, pmName: pm.pm_name, weekStart })}>
+                        ↩ Reopen for PM
+                      </button>
                       <button className="btn btn-secondary btn-sm" onClick={() => { setWeekRejectDialog({ pmId: pm.pm_id, weekStart }); setWeekRejectReason(''); }}>Reject all</button>
                       <button className="btn-primary btn-sm btn" onClick={() => approveWeek(pm.pm_id, weekStart)}>Approve all</button>
                     </div>
@@ -153,6 +168,28 @@ export default function Approvals() {
         <div>
           <label className="label">Rejection reason (required)</label>
           <textarea className="input resize-none" rows={3} value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Explain why this entry is being rejected…" />
+        </div>
+      </ConfirmDialog>
+
+      {/* Reopen week */}
+      <ConfirmDialog
+        open={!!reopenDialog}
+        title="Reopen this week for editing?"
+        message=""
+        confirmLabel="Reopen week"
+        confirmClass="btn-primary"
+        onConfirm={handleReopenWeek}
+        onCancel={() => setReopenDialog(null)}
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600">
+            All submitted entries for <strong>{reopenDialog?.pmName}</strong> for week of{' '}
+            <strong>{reopenDialog && format(new Date(reopenDialog.weekStart + 'T00:00:00'), 'MMM d, yyyy')}</strong>{' '}
+            will be returned to <strong>draft</strong>.
+          </p>
+          <p className="text-sm text-gray-500">
+            The PM will be able to edit and re-submit their timesheet.
+          </p>
         </div>
       </ConfirmDialog>
 

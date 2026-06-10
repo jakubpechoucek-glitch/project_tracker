@@ -13,8 +13,14 @@ async function list(req, res) {
 
 async function create(req, res) {
   try {
-    const assignment = assignmentsService.createAssignment(req.user.id, req.body);
-    created(res, assignment);
+    const { pmIds, pmId } = req.body;
+    if (Array.isArray(pmIds) && pmIds.length > 0) {
+      const result = assignmentsService.createAssignments(req.user.id, req.body);
+      created(res, result);
+    } else {
+      const assignment = assignmentsService.createAssignment(req.user.id, req.body);
+      created(res, assignment);
+    }
   } catch (err) { error(res, err.message, err.status || 500); }
 }
 

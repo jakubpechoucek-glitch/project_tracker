@@ -37,10 +37,10 @@ function parseTimeInput(raw) {
   // "1.5h" or "1h"
   const hMatch = s.match(/^(\d+\.?\d*)h$/);
   if (hMatch) return parseFloat(hMatch[1]);
-  // bare decimal → hours (e.g. 1.5, 0.5)
+  // bare decimal → hours (e.g. 1.5, 0.5, 8.25)
   if (/^\d+\.\d+$/.test(s)) return parseFloat(s);
-  // bare integer → minutes (e.g. 60, 480, 10)
-  if (/^\d+$/.test(s)) return parseInt(s, 10) / 60;
+  // bare integer → hours (e.g. 8 = 8h, 1 = 1h)
+  if (/^\d+$/.test(s)) return parseInt(s, 10);
   return null;
 }
 
@@ -133,7 +133,8 @@ export default function Timesheet() {
     setEditingCell(key);
     const hours = grid[projectId]?.[dateStr]?.hours;
     // Show minutes as plain number when focusing (e.g. "60" for 1h) — easy to retype
-    setEditingValue(hours ? String(Math.round(hours * 60)) : '');
+    // Show decimal hours in edit field (e.g. 1.5, 8, 0.5)
+    setEditingValue(hours ? String(parseFloat(hours.toFixed(2))) : '');
   }
 
   function handleCellChange(projectId, dateStr, rawValue) {
@@ -147,7 +148,7 @@ export default function Timesheet() {
   function handleCellBlur(projectId, dateStr) {
     const hours = parseTimeInput(editingValue);
     if (editingValue !== '' && hours === null) {
-      toast.error('Use minutes (60), hours (1h), or combined (1h30m / 1:30)');
+      toast.error('Use hours (1.5), suffix (1h30m / 1:30), or minutes (30m). Max 24h per entry.');
       // Clear invalid input
       setGrid(g => {
         const cell = g[projectId]?.[dateStr];
@@ -375,10 +376,10 @@ export default function Timesheet() {
 
         {/* Input hint */}
         <div className="text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2 border border-gray-100">
-          <span className="font-medium text-gray-500">Entering time:</span>{' '}
-          type minutes (<span className="font-mono">60</span> = 1h, <span className="font-mono">90</span> = 1h 30m, <span className="font-mono">10</span> = 10m),
-          or use <span className="font-mono">1h</span>, <span className="font-mono">1h30m</span>, <span className="font-mono">1:30</span>, or decimal hours like <span className="font-mono">1.5</span>.
-          Minimum 10 minutes.
+          <span className="font-medium text-gray-500">Entering time (in hours):</span>{' '}
+          type <span className="font-mono">8</span> = 8h, <span className="font-mono">1.5</span> = 1h 30m, <span className="font-mono">0.5</span> = 30m —
+          or use <span className="font-mono">1h30m</span>, <span className="font-mono">1:30</span>, <span className="font-mono">30m</span> for more formats.
+          Maximum 24h per entry.
         </div>
 
         {/* Legend */}
@@ -424,13 +425,26 @@ export default function Timesheet() {
 
       <ConfirmDialog
         open={submitOpen}
-        title="Close this week?"
-        message="All draft entries for this week will be marked as approved. You won't be able to edit them afterwards."
-        confirmLabel="Close week"
+        title="Submit week for approval?"
+        message=""
+        confirmLabel="Submit week"
         confirmClass="btn-primary"
         onConfirm={handleSubmit}
         onCancel={() => setSubmitOpen(false)}
-      />
+      >
+        <div className="space-y-3">
+          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+            <span className="text-amber-500 text-lg leading-none mt-0.5">⚠</span>
+            <div className="text-sm text-amber-800">
+              <p className="font-semibold mb-1">Make sure you've saved your draft first!</p>
+              <p>Any time entries not yet saved via <strong>"Save draft"</strong> will <strong>NOT</strong> be included in this submission.</p>
+            </div>
+          </div>
+          <p className="text-sm text-gray-600">
+            All saved draft entries for this week will be sent for admin approval. You won't be able to edit them until an admin reopens the week.
+          </p>
+        </div>
+      </ConfirmDialog>
     </AppLayout>
   );
 }

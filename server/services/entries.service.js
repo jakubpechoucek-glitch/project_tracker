@@ -5,17 +5,13 @@ const usersRepo = require('../repositories/users.repository');
 const audit = require('../utils/audit');
 const { weekStartOf, weekEndOf, today } = require('../utils/date');
 
-const MAX_HOURS_PER_ENTRY = 12;
+const MAX_HOURS_PER_ENTRY = 24;
 const MAX_HOURS_PER_DAY = 24;
 const WARN_HOURS_PER_DAY = 8;
-const MIN_HOURS = 1 / 6;          // 10 minutes
-const HOUR_INCREMENT = 1 / 6;     // 10-minute steps
 
 function validateHours(hours) {
-  if (hours < MIN_HOURS) throw { status: 422, message: 'Minimum time per entry is 10 minutes' };
+  if (hours <= 0) throw { status: 422, message: 'Hours must be greater than 0' };
   if (hours > MAX_HOURS_PER_ENTRY) throw { status: 422, message: `Maximum hours per entry is ${MAX_HOURS_PER_ENTRY}` };
-  // Must be a multiple of 10 minutes (allow ±1 sec rounding tolerance)
-  if (Math.round(hours * 60) % 10 !== 0) throw { status: 422, message: 'Time must be in 10-minute increments' };
 }
 
 async function validateEntryContext(pmId, projectId, date, excludeEntryId = null) {
@@ -167,6 +163,19 @@ function reopenEntry(adminId, entryId) {
   return entriesRepo.findById(entryId);
 }
 
+function reopenWeek(adminId, pmId, weekDateStr) {
+  const start = weekStartOf(weekDateStr);
+  const end   = weekEndOf(weekDateStr);
+  const allEntries = entriesRepo.findByPmAndWeek(pmId, start, end);
+  const toReopen = allEntries.filter(e => e.status !== 'draft');
+  if (toReopen.length === 0) throw { status: 409, message: 'All entries for this week are already editable (draft)' };
+  for (const e of toReopen) {
+    entriesRepo.updateStatus(e.id, { status: 'draft', approvedBy: null, approvedAt: null, rejectionReason: null });
+  }
+  audit.log(adminId, 'REOPEN_WEEK', 'time_entry', null, { pm_id: pmId, week_start: start, count: toReopen.length });
+  return { reopened: toReopen.length, weekStart: start };
+}
+
 function approveWeek(adminId, pmId, weekDateStr) {
   const start = weekStartOf(weekDateStr);
   const end = weekEndOf(weekDateStr);
@@ -231,6 +240,6 @@ const { findActive: findActiveAssignments } = require('../repositories/assignmen
 
 module.exports = {
   listEntries, getWeekEntries, createEntry, updateEntry, deleteEntry,
-  submitWeek, approveEntry, rejectEntry, reopenEntry, approveWeek, rejectWeek,
+  submitWeek, approveEntry, rejectEntry, reopenEntry, approveWeek, rejectWeek, reopenWeek,
   getPendingApprovals, getAdminDashboard, getPmDashboard,
 };

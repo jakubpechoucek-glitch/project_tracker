@@ -41,6 +41,22 @@ function createAssignment(adminId, { pmId, projectId, assignedFrom }) {
   return assignmentsRepo.findById(result.lastInsertRowid);
 }
 
+function createAssignments(adminId, { pmIds, projectId, assignedFrom }) {
+  const created = [];
+  const errors  = [];
+  for (const pmId of pmIds) {
+    try {
+      const result = createAssignment(adminId, { pmId, projectId, assignedFrom });
+      created.push(result);
+    } catch (err) {
+      const user = usersRepo.findById(pmId);
+      errors.push({ pmId, name: user?.name || `PM #${pmId}`, message: err.message });
+    }
+  }
+  if (created.length === 0 && errors.length > 0) throw errors[0];
+  return { created, errors };
+}
+
 function endAssignment(adminId, assignmentId, assignedTo) {
   const assignment = assignmentsRepo.findById(assignmentId);
   if (!assignment) throw { status: 404, message: 'Assignment not found' };
@@ -61,4 +77,4 @@ function getActivePmProjects(pmId) {
   return assignmentsRepo.findActivePmProjects(pmId);
 }
 
-module.exports = { listAssignments, listActive, listByPm, listByProject, createAssignment, endAssignment, getActivePmProjects };
+module.exports = { listAssignments, listActive, listByPm, listByProject, createAssignment, createAssignments, endAssignment, getActivePmProjects };

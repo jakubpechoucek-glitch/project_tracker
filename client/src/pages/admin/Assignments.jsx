@@ -36,7 +36,7 @@ export default function Assignments() {
   const [users, setUsers] = useState([]);
   const [projects, setProjects] = useState([]);
   const [modal, setModal] = useState(false);
-  const [form, setForm] = useState({ pmId: '', projectId: '', assignedFrom: format(startOfISOWeek(new Date()), 'yyyy-MM-dd') });
+  const [form, setForm] = useState({ pmIds: [], projectId: '', assignedFrom: format(startOfISOWeek(new Date()), 'yyyy-MM-dd') });
   const [formErr, setFormErr] = useState('');
   const [saving, setSaving] = useState(false);
   const [endTarget, setEndTarget] = useState(null);
@@ -61,14 +61,32 @@ export default function Assignments() {
   async function handleCreate(e) {
     e.preventDefault();
     setFormErr('');
+    if (form.pmIds.length === 0) { setFormErr('Select at least one PM'); return; }
     setSaving(true);
     try {
-      await api.post('/assignments', { pmId: parseInt(form.pmId), projectId: parseInt(form.projectId), assignedFrom: form.assignedFrom });
-      toast.success('Assignment created');
+      const res = await api.post('/assignments', {
+        pmIds: form.pmIds,
+        projectId: parseInt(form.projectId),
+        assignedFrom: form.assignedFrom,
+      });
+      const { created: ok = [], errors: errs = [] } = res.data.data || {};
+      if (errs.length > 0) {
+        const msg = errs.map(e => `${e.name}: ${e.message}`).join('; ');
+        toast(`${ok.length} assigned. Skipped: ${msg}`, { icon: '⚠' });
+      } else {
+        toast.success(`${ok.length} assignment${ok.length !== 1 ? 's' : ''} created`);
+      }
       setModal(false);
       load();
     } catch (err) { setFormErr(err.response?.data?.error || 'Failed'); }
     finally { setSaving(false); }
+  }
+
+  function togglePm(pmId) {
+    setForm(f => ({
+      ...f,
+      pmIds: f.pmIds.includes(pmId) ? f.pmIds.filter(id => id !== pmId) : [...f.pmIds, pmId],
+    }));
   }
 
   async function handleEnd() {
@@ -96,11 +114,11 @@ export default function Assignments() {
             <input type="checkbox" className="rounded" checked={showAll} onChange={e => setShowAll(e.target.checked)} />
             Show all (including ended)
           </label>
-          <button className="btn-primary" onClick={() => { setModal(true); setForm({ pmId: '', projectId: '', assignedFrom: format(startOfISOWeek(new Date()), 'yyyy-MM-dd') }); setFormErr(''); }}>+ Assign PM</button>
+          <button className="btn-primary" onClick={() => { setModal(true); setForm({ pmIds: [], projectId: '', assignedFrom: format(startOfISOWeek(new Date()), 'yyyy-MM-dd') }); setFormErr(''); }}>+ Assign PM</button>
         </div>
 
         {loading ? <SkeletonTable /> : pmGroups.length === 0 ? (
-          <EmptyState icon={LinkIcon} title="No assignments" description="Assign a PM to a project to get started." action={<button className="btn-primary" onClick={() => setModal(true)}>Assign PM</button>} />
+          <EmptyState icon={LinkIcon} title="No assignments" description="Assign a PM to a project to get started." action={<button className="btn-primary" onClick={() => { setModal(true); setForm({ pmIds: [], projectId: '', assignedFrom: format(startOfISOWeek(new Date()), 'yyyy-MM-dd') }); setFormErr(''); }}>Assign PM</button>} />
         ) : (
           <div className="space-y-3">
             {pmGroups.map(group => {
@@ -152,25 +170,36 @@ export default function Assignments() {
       <Modal open={modal} onClose={() => setModal(false)} title="Assign PM to project">
         <form onSubmit={handleCreate} className="space-y-4">
           <div>
-            <label className="label">PM</label>
-            <select className="input" value={form.pmId} onChange={e => setForm(f => ({ ...f, pmId: e.target.value }))} required>
-              <option value="">Select PM…</option>
+            <label className="label">
+              PM{' '}
+              <span className="text-gray-400 font-normal text-xs ml-1">
+                {form.pmIds.length > 0 ? `${form.pmIds.length} selected` : 'select one or more'}
+              </span>
+            </label>
+            <div className="border border-gray-200 rounded-lg max-h-48 overflow-y-auto divide-y divide-gray-100">
+              {users.length === 0 && (
+                <p className="px-3 py-2 text-sm text-gray-400">No PMs available</p>
+              )}
               {users.map(u => {
                 const c = getPmColor(u.id);
-                return <option key={u.id} value={u.id}>{u.name}</option>;
+                const checked = form.pmIds.includes(u.id);
+                return (
+                  <label key={u.id}
+                    className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-50 transition-colors"
+                    style={checked ? { backgroundColor: c.bg } : {}}>
+                    <input
+                      type="checkbox"
+                      className="rounded border-gray-300"
+                      checked={checked}
+                      onChange={() => togglePm(u.id)}
+                    />
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: c.dot }} />
+                    <span className="text-sm" style={checked ? { color: c.text, fontWeight: 500 } : {}}>{u.name}</span>
+                  </label>
+                );
               })}
-            </select>
+            </div>
           </div>
-          {/* Color preview for selected PM */}
-          {form.pmId && (() => {
-            const c = getPmColor(parseInt(form.pmId));
-            return (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium" style={{ backgroundColor: c.bg, color: c.text }}>
-                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: c.dot }} />
-                {users.find(u => u.id === parseInt(form.pmId))?.name} will be assigned this color
-              </div>
-            );
-          })()}
           <div>
             <label className="label">Project</label>
             <select className="input" value={form.projectId} onChange={e => setForm(f => ({ ...f, projectId: e.target.value }))} required>

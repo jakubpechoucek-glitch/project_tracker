@@ -79,6 +79,13 @@ async function reopen(req, res) {
   } catch (err) { error(res, err.message, err.status || 500); }
 }
 
+async function reopenWeek(req, res) {
+  try {
+    const result = entriesService.reopenWeek(req.user.id, req.body.pmId, req.body.week);
+    success(res, result);
+  } catch (err) { error(res, err.message, err.status || 500); }
+}
+
 async function approveWeek(req, res) {
   try {
     const result = entriesService.approveWeek(req.user.id, req.body.pmId, req.body.week);
@@ -111,4 +118,4 @@ async function pmDashboard(req, res) {
   } catch (err) { error(res, err.message, err.status || 500); }
 }
 
-module.exports = { list, getWeek, create, update, remove, submit, approve, reject, reopen, approveWeek, rejectWeek, pending, adminDashboard, pmDashboard };
+module.exports = { list, getWeek, create, update, remove, submit, approve, reject, reopen, approveWeek, rejectWeek, reopenWeek, pending, adminDashboard, pmDashboard };
