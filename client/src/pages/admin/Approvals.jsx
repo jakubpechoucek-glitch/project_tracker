@@ -102,11 +102,12 @@ export default function Approvals() {
   async function handleReopenWeek() {
     const { pmId, pmName, weekStart } = reopenDialog;
     try {
-      await api.post('/entries/reopen-week', { pmId, week: weekStart });
-      toast.success(`Week reopened — ${pmName} can now edit their timesheet`);
+      const res = await api.post('/entries/reopen-week', { pmId, week: weekStart });
+      const count = res.data.data?.reopened ?? 0;
+      toast.success(`${count} entr${count !== 1 ? 'ies' : 'y'} returned to draft — ${pmName} can now edit their timesheet`);
       setReopenDialog(null);
       load();
-    } catch (err) { toast.error(err.response?.data?.error || 'Failed'); }
+    } catch (err) { toast.error(err.response?.data?.error || 'Failed to reopen week'); }
   }
 
   async function handleReopenTool() {

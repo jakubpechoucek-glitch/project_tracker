@@ -93,22 +93,19 @@ export default function Timesheet() {
   const weekStartRef = useRef(weekStart);
   useEffect(() => { weekStartRef.current = weekStart; }, [weekStart]);
 
-  const fetchWeek = useCallback(async () => {
+  const fetchWeek = useCallback(async ({ showErrors = false } = {}) => {
     const ws = weekStartRef.current;
     setLoading(true);
     try {
-      const [projectsRes, weekRes, sumRes] = await Promise.all([
+      // Fetch projects and entries together — these are required for the grid
+      const [projectsRes, weekRes] = await Promise.all([
         api.get('/assignments/my-projects'),
         api.get(`/entries/week?week=${ws}`),
-        api.get(`/weekly-summaries?weekStart=${ws}`),
       ]);
       const projs = projectsRes.data.data;
       const ents  = weekRes.data.data.entries || [];
       setProjects(projs);
       setEntries(ents);
-      const s = sumRes.data.data;
-      setSummary({ highlights: s?.highlights || '', blockers: s?.blockers || '' });
-      setSummaryDirty(false);
       const g = {};
       for (const p of projs) { g[p.project_id] = {}; }
       for (const e of ents) {
@@ -116,6 +113,19 @@ export default function Timesheet() {
         g[e.project_id][e.date] = { hours: e.hours, status: e.status, id: e.id, category: e.category };
       }
       setGrid(g);
+      // Weekly summary is non-critical — fetch separately so its failure never blocks the grid
+      try {
+        const sumRes = await api.get(`/weekly-summaries?weekStart=${ws}`);
+        const s = sumRes.data.data;
+        setSummary({ highlights: s?.highlights || '', blockers: s?.blockers || '' });
+        setSummaryDirty(false);
+      } catch { /* summary load failure is non-critical — grid data is already set */ }
+    } catch (err) {
+      const status = err?.response?.status;
+      // 401/403 are already handled by the api.js interceptor (toast shown there)
+      if (showErrors && status !== 401 && status !== 403) {
+        toast.error(err?.response?.data?.error || 'Could not refresh timesheet — please reload the page.');
+      }
     } finally {
       setLoading(false);
     }
@@ -283,25 +293,32 @@ export default function Timesheet() {
         </div>
 
         {/* Week locked banner */}
-        {weekIsLocked && (
-          <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
-            <span className="text-blue-500 text-lg leading-none mt-0.5">🔒</span>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-blue-800">This week is locked</p>
-              <p className="text-sm text-blue-700">
-                Your timesheet has been submitted and is pending admin review. To make changes, ask your admin to reopen this week.
-              </p>
+        {weekIsLocked && (() => {
+          const pendingCount  = entries.filter(e => e.status === 'pending').length;
+          const approvedCount = entries.filter(e => e.status === 'approved').length;
+          const statusText = pendingCount > 0
+            ? `${pendingCount} entr${pendingCount !== 1 ? 'ies' : 'y'} pending admin review.`
+            : `${approvedCount} entr${approvedCount !== 1 ? 'ies' : 'y'} approved.`;
+          return (
+            <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
+              <span className="text-blue-500 text-lg leading-none mt-0.5">🔒</span>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-blue-800">This week is locked</p>
+                <p className="text-sm text-blue-700">
+                  {statusText} To make changes, ask your admin to reopen this week.
+                </p>
+              </div>
+              <button
+                onClick={() => fetchWeek({ showErrors: true })}
+                disabled={loading}
+                className="shrink-0 text-xs font-medium text-blue-600 hover:text-blue-800 border border-blue-300 rounded px-2 py-1 bg-white hover:bg-blue-50 disabled:opacity-40 transition-colors"
+                title="Reload to check if admin has reopened this week"
+              >
+                {loading ? '⟳ Checking…' : '↻ Check status'}
+              </button>
             </div>
-            <button
-              onClick={() => fetchWeek()}
-              disabled={loading}
-              className="shrink-0 text-xs font-medium text-blue-600 hover:text-blue-800 border border-blue-300 rounded px-2 py-1 bg-white hover:bg-blue-50 disabled:opacity-40 transition-colors"
-              title="Reload to check if admin has reopened this week"
-            >
-              {loading ? '⟳ Checking…' : '↻ Check status'}
-            </button>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Warnings */}
         {warnings.map((w, i) => (
