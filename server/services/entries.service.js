@@ -28,6 +28,26 @@ async function validateEntryContext(pmId, projectId, date, excludeEntryId = null
   return project;
 }
 
+/**
+ * Throws 403 if the week containing `date` has any pending/approved entries for this PM.
+ * Admins are exempt — they can always write.
+ */
+function assertWeekEditable(actorId, pmId, date) {
+  const actor = usersRepo.findById(actorId);
+  if (actor && actor.role === 'admin') return; // admins bypass the lock
+
+  const start = weekStartOf(date);
+  const end   = weekEndOf(date);
+  const weekEntries = entriesRepo.findByPmAndWeek(pmId, start, end);
+  const locked = weekEntries.some(e => e.status === 'pending' || e.status === 'approved');
+  if (locked) {
+    throw {
+      status: 403,
+      message: 'This week is locked — it has already been submitted for approval. Ask an admin to reopen it before making changes.',
+    };
+  }
+}
+
 function listEntries(filters) {
   return entriesRepo.findAll(filters);
 }
@@ -41,6 +61,7 @@ function getWeekEntries(pmId, weekDateStr) {
 
 async function createEntry(actorId, { pmId, projectId, date, hours, category, description }) {
   validateHours(hours);
+  assertWeekEditable(actorId, pmId, date);
   await validateEntryContext(pmId, projectId, date);
 
   const dup = entriesRepo.findDuplicate(pmId, projectId, date);
@@ -72,12 +93,8 @@ async function updateEntry(actorId, entryId, { hours, category, description, dat
     if (!actor || actor.role !== 'admin') throw { status: 403, message: 'You can only edit your own entries' };
   }
 
-  if (entry.status === 'approved' || entry.status === 'pending') {
-    const actor = usersRepo.findById(actorId);
-    if (!actor || actor.role !== 'admin') {
-      throw { status: 403, message: 'This entry is locked. Only an admin can edit submitted entries.' };
-    }
-  }
+  // Block editing if this specific entry is locked, or if the week is locked (any pending/approved)
+  assertWeekEditable(actorId, entry.pm_id, entry.date);
 
   validateHours(hours ?? entry.hours);
 

@@ -177,6 +177,7 @@ export default function Timesheet() {
   }
 
   async function handleSave() {
+    if (weekIsLocked) return; // week already submitted — backend would reject anyway
     setSaving(true);
     const warns = [];
     try {
@@ -230,6 +231,7 @@ export default function Timesheet() {
   }
 
   async function handleSubmit() {
+    if (weekIsLocked) { setSubmitOpen(false); return; }
     try {
       await api.post('/entries/submit', { week: weekStart });
       setSubmitOpen(false);
