@@ -269,6 +269,29 @@ export default function Timesheet() {
   // Week is locked when any entry is pending or approved — PM cannot edit anything
   const weekIsLocked = entries.some(e => e.status === 'pending' || e.status === 'approved');
 
+  // Count cells that have hours in the grid but haven't been saved to the server yet.
+  // Covers: new entries (no id) and existing entries whose hours were changed since last save.
+  const unsavedCount = (() => {
+    if (weekIsLocked) return 0;
+    let count = 0;
+    for (const p of projects) {
+      for (const d of weekDates) {
+        const dateStr = format(d, 'yyyy-MM-dd');
+        const cell = grid[p.project_id]?.[dateStr];
+        const cellHours = parseFloat(cell?.hours);
+        if (!cell || !cellHours || isNaN(cellHours) || cellHours <= 0) continue;
+        if (cell.status === 'pending' || cell.status === 'approved') continue;
+        if (!cell.id) {
+          count++; // new entry typed but not yet saved
+        } else {
+          const saved = entries.find(e => e.id === cell.id);
+          if (saved && Math.abs(parseFloat(saved.hours) - cellHours) > 0.001) count++;
+        }
+      }
+    }
+    return count;
+  })();
+
   return (
     <AppLayout title="Weekly Timesheet">
       <div className="space-y-4">
@@ -280,11 +303,16 @@ export default function Timesheet() {
           </span>
           <button className="btn btn-ghost btn-sm" onClick={() => setWeekAnchor(d => addDays(d, 7))}>Next →</button>
           {!weekIsLocked && (
-            <div className="ml-auto flex gap-2 flex-wrap">
+            <div className="ml-auto flex items-center gap-2 flex-wrap">
               <button className="btn btn-ghost btn-sm" onClick={handleCopyLastWeek}>Copy last week</button>
               <button className="btn btn-secondary btn-sm" onClick={handleSave} disabled={saving || loading}>
                 {saving ? 'Saving…' : 'Save draft'}
               </button>
+              {unsavedCount > 0 && (
+                <span className="text-xs font-medium text-amber-600 flex items-center gap-1">
+                  ⚠ {unsavedCount} unsaved
+                </span>
+              )}
               <button className="btn-primary btn-sm btn" onClick={() => setSubmitOpen(true)} disabled={!hasDraftEntries || loading}>
                 Submit week
               </button>
@@ -484,13 +512,27 @@ export default function Timesheet() {
         onCancel={() => setSubmitOpen(false)}
       >
         <div className="space-y-3">
-          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-            <span className="text-amber-500 text-lg leading-none mt-0.5">⚠</span>
-            <div className="text-sm text-amber-800">
-              <p className="font-semibold mb-1">Make sure you've saved your draft first!</p>
-              <p>Any time entries not yet saved via <strong>"Save draft"</strong> will <strong>NOT</strong> be included in this submission.</p>
+          {unsavedCount > 0 ? (
+            <div className="flex items-start gap-3 bg-red-50 border border-red-300 rounded-lg px-4 py-3">
+              <span className="text-red-500 text-lg leading-none mt-0.5">🚨</span>
+              <div className="text-sm text-red-800">
+                <p className="font-semibold mb-1">
+                  {unsavedCount} unsaved entr{unsavedCount !== 1 ? 'ies' : 'y'} will not be submitted!
+                </p>
+                <p>
+                  Click <strong>"Cancel"</strong> and use <strong>"Save draft"</strong> first — then submit again.
+                </p>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+              <span className="text-amber-500 text-lg leading-none mt-0.5">⚠</span>
+              <div className="text-sm text-amber-800">
+                <p className="font-semibold mb-1">Make sure you've saved your draft first!</p>
+                <p>Any time entries not yet saved via <strong>"Save draft"</strong> will <strong>NOT</strong> be included in this submission.</p>
+              </div>
+            </div>
+          )}
           <p className="text-sm text-gray-600">
             All saved draft entries for this week will be sent for admin approval. You won't be able to edit them until an admin reopens the week.
           </p>
