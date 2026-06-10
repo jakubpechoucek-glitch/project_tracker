@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { format, addDays, startOfISOWeek } from 'date-fns';
 import AppLayout from '../../components/layout/AppLayout';
 import StatusBadge from '../../components/ui/StatusBadge';
@@ -89,23 +89,26 @@ export default function Timesheet() {
   const [summaryDirty, setSummaryDirty] = useState(false);
   const [savingSummary, setSavingSummary] = useState(false);
 
+  // weekStartRef always holds the latest weekStart so fetchWeek never has a stale closure
+  const weekStartRef = useRef(weekStart);
+  useEffect(() => { weekStartRef.current = weekStart; }, [weekStart]);
+
   const fetchWeek = useCallback(async () => {
+    const ws = weekStartRef.current;
     setLoading(true);
     try {
       const [projectsRes, weekRes, sumRes] = await Promise.all([
         api.get('/assignments/my-projects'),
-        api.get(`/entries/week?week=${weekStart}`),
-        api.get(`/weekly-summaries?weekStart=${weekStart}`),
+        api.get(`/entries/week?week=${ws}`),
+        api.get(`/weekly-summaries?weekStart=${ws}`),
       ]);
       const projs = projectsRes.data.data;
-      const ents = weekRes.data.data.entries || [];
+      const ents  = weekRes.data.data.entries || [];
       setProjects(projs);
       setEntries(ents);
       const s = sumRes.data.data;
       setSummary({ highlights: s?.highlights || '', blockers: s?.blockers || '' });
       setSummaryDirty(false);
-
-      // Build grid: { projectId: { dateStr: entry } }
       const g = {};
       for (const p of projs) { g[p.project_id] = {}; }
       for (const e of ents) {
@@ -116,9 +119,9 @@ export default function Timesheet() {
     } finally {
       setLoading(false);
     }
-  }, [weekStart]);
+  }, []); // no deps — always reads weekStart via ref
 
-  useEffect(() => { fetchWeek(); }, [fetchWeek]);
+  useEffect(() => { fetchWeek(); }, [weekStart, fetchWeek]);
 
   function getDayTotal(dateStr) {
     return projects.reduce((sum, p) => sum + (parseFloat(grid[p.project_id]?.[dateStr]?.hours) || 0), 0);
@@ -290,12 +293,12 @@ export default function Timesheet() {
               </p>
             </div>
             <button
-              onClick={fetchWeek}
+              onClick={() => fetchWeek()}
               disabled={loading}
-              className="shrink-0 text-xs font-medium text-blue-600 hover:text-blue-800 underline disabled:opacity-50"
+              className="shrink-0 text-xs font-medium text-blue-600 hover:text-blue-800 border border-blue-300 rounded px-2 py-1 bg-white hover:bg-blue-50 disabled:opacity-40 transition-colors"
               title="Reload to check if admin has reopened this week"
             >
-              ↻ Check status
+              {loading ? '⟳ Checking…' : '↻ Check status'}
             </button>
           </div>
         )}

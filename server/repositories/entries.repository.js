@@ -101,9 +101,9 @@ function submitWeek(pmId, weekStart, weekEnd) {
   const now = new Date().toISOString();
   return getDb().prepare(`
     UPDATE time_entries
-    SET status = 'approved', submitted_at = ?, approved_at = ?, updated_at = datetime('now')
+    SET status = 'pending', submitted_at = ?, updated_at = datetime('now')
     WHERE pm_id = ? AND date >= ? AND date <= ? AND status = 'draft'
-  `).run(now, now, pmId, weekStart, weekEnd);
+  `).run(now, pmId, weekStart, weekEnd);
 }
 
 function remove(id) {
