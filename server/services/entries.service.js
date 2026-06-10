@@ -3,7 +3,7 @@ const assignmentsRepo = require('../repositories/assignments.repository');
 const projectsRepo = require('../repositories/projects.repository');
 const usersRepo = require('../repositories/users.repository');
 const audit = require('../utils/audit');
-const { weekStartOf, weekEndOf, today } = require('../utils/date');
+const { weekStartOf, weekEndOf, today, addDays } = require('../utils/date');
 
 const MAX_HOURS_PER_ENTRY = 24;
 const MAX_HOURS_PER_DAY = 24;
@@ -166,6 +166,14 @@ function reopenEntry(adminId, entryId) {
 function reopenWeek(adminId, pmId, weekDateStr) {
   const start = weekStartOf(weekDateStr);
   const end   = weekEndOf(weekDateStr);
+
+  // Only current week or previous week may be reopened
+  const currentWeekStart = weekStartOf(today());
+  const prevWeekStart    = addDays(currentWeekStart, -7);
+  if (start < prevWeekStart) {
+    throw { status: 422, message: 'Only the current week or the previous week can be reopened.' };
+  }
+
   const allEntries = entriesRepo.findByPmAndWeek(pmId, start, end);
   const toReopen = allEntries.filter(e => e.status !== 'draft');
   if (toReopen.length === 0) throw { status: 409, message: 'All entries for this week are already editable (draft)' };

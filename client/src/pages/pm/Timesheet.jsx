@@ -251,7 +251,8 @@ export default function Timesheet() {
   }
 
   const hasDraftEntries = entries.some(e => e.status === 'draft');
-  const allSubmitted = entries.length > 0 && entries.every(e => e.status !== 'draft');
+  // Week is locked when any entry is pending or approved — PM cannot edit anything
+  const weekIsLocked = entries.some(e => e.status === 'pending' || e.status === 'approved');
 
   return (
     <AppLayout title="Weekly Timesheet">
@@ -263,16 +264,31 @@ export default function Timesheet() {
             {format(weekDates[0], 'MMM d')} – {format(weekDates[6], 'MMM d, yyyy')}
           </span>
           <button className="btn btn-ghost btn-sm" onClick={() => setWeekAnchor(d => addDays(d, 7))}>Next →</button>
-          <div className="ml-auto flex gap-2 flex-wrap">
-            <button className="btn btn-ghost btn-sm" onClick={handleCopyLastWeek}>Copy last week</button>
-            <button className="btn btn-secondary btn-sm" onClick={handleSave} disabled={saving || loading}>
-              {saving ? 'Saving…' : 'Save draft'}
-            </button>
-            <button className="btn-primary btn-sm btn" onClick={() => setSubmitOpen(true)} disabled={!hasDraftEntries || loading}>
-              Submit week
-            </button>
-          </div>
+          {!weekIsLocked && (
+            <div className="ml-auto flex gap-2 flex-wrap">
+              <button className="btn btn-ghost btn-sm" onClick={handleCopyLastWeek}>Copy last week</button>
+              <button className="btn btn-secondary btn-sm" onClick={handleSave} disabled={saving || loading}>
+                {saving ? 'Saving…' : 'Save draft'}
+              </button>
+              <button className="btn-primary btn-sm btn" onClick={() => setSubmitOpen(true)} disabled={!hasDraftEntries || loading}>
+                Submit week
+              </button>
+            </div>
+          )}
         </div>
+
+        {/* Week locked banner */}
+        {weekIsLocked && (
+          <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
+            <span className="text-blue-500 text-lg leading-none mt-0.5">🔒</span>
+            <div>
+              <p className="text-sm font-semibold text-blue-800">This week is locked</p>
+              <p className="text-sm text-blue-700">
+                Your timesheet has been submitted and is pending admin review. To make changes, ask your admin to reopen this week.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Warnings */}
         {warnings.map((w, i) => (
@@ -314,19 +330,24 @@ export default function Timesheet() {
                       const ds = format(d, 'yyyy-MM-dd');
                       const cell = grid[p.project_id]?.[ds];
                       const dt = getDayTotal(ds);
-                      const isLocked = cell?.status === 'approved' || cell?.status === 'pending';
-                      return (
-                        <td key={i} className={clsx('px-1 py-1 text-center hours-cell border',
-                          cell?.status === 'approved' ? 'cell-approved' :
+                      // Cell is locked if the whole week is locked OR this specific entry is pending/approved
+                      const isLocked = weekIsLocked || cell?.status === 'approved' || cell?.status === 'pending';
+                      // Cell background: per-entry status takes priority; if week locked but cell is draft/empty, show neutral
+                      const cellBg = cell?.status === 'approved' ? 'cell-approved' :
                           cell?.status === 'pending' ? 'cell-pending' :
                           cell?.status === 'rejected' ? 'cell-rejected' :
-                          dt > 12 ? 'cell-danger' : dt > 8 ? 'cell-warn' : 'border-gray-100'
-                        )}>
+                          weekIsLocked ? 'bg-gray-50 border-gray-100' :
+                          dt > 12 ? 'cell-danger' : dt > 8 ? 'cell-warn' : 'border-gray-100';
+                      return (
+                        <td key={i} className={clsx('px-1 py-1 text-center hours-cell border', cellBg)}>
                           {isLocked ? (
                             <div className="flex flex-col items-center gap-0.5 py-1">
-                              <span className="font-medium text-gray-700">{formatHours(cell.hours)}</span>
-                              {cell.category && <span className="text-xs text-gray-400 truncate max-w-[80px]">{cell.category}</span>}
-                              <StatusBadge status={cell.status} className="scale-75" />
+                              <span className={clsx('font-medium', cell?.hours ? 'text-gray-700' : 'text-gray-300')}>
+                                {formatHours(cell?.hours) || '—'}
+                              </span>
+                              {(cell?.status === 'pending' || cell?.status === 'approved' || cell?.status === 'rejected') && (
+                                <StatusBadge status={cell.status} className="scale-75" />
+                              )}
                             </div>
                           ) : (
                             <input
