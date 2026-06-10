@@ -283,12 +283,20 @@ export default function Timesheet() {
         {weekIsLocked && (
           <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
             <span className="text-blue-500 text-lg leading-none mt-0.5">🔒</span>
-            <div>
+            <div className="flex-1">
               <p className="text-sm font-semibold text-blue-800">This week is locked</p>
               <p className="text-sm text-blue-700">
                 Your timesheet has been submitted and is pending admin review. To make changes, ask your admin to reopen this week.
               </p>
             </div>
+            <button
+              onClick={fetchWeek}
+              disabled={loading}
+              className="shrink-0 text-xs font-medium text-blue-600 hover:text-blue-800 underline disabled:opacity-50"
+              title="Reload to check if admin has reopened this week"
+            >
+              ↻ Check status
+            </button>
           </div>
         )}
 
